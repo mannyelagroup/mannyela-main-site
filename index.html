@@ -2221,12 +2221,11 @@
               </p>
             </div>
           </div>
-
+          <button type="button" onclick="handleSignUp(document.getElementById('reg-email').value, document.getElementById('reg-pass').value)" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Rejoindre la Maison</button>
           <p id="reg-cgu-error" style="display:none;font-size:9px;font-family:'Cinzel',serif;color:rgba(220,80,80,0.85);padding:3px 0 0 2px;">
             ✕ Veuillez cocher la case pour continuer
           </p>
 
-          <button class="btn-mannyela w-full mt-1" onclick="doRegister()">Créer mon compte ✦</button>
           <p class="text-center text-[10px] text-white/25 mt-2">
             Déjà membre ?
             <span onclick="goTo('login')" class="text-accent/50 cursor-pointer hover:text-accent/80 transition-colors font-cinzel tracking-wider"> Se connecter</span>
