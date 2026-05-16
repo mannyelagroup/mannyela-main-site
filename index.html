@@ -2124,10 +2124,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button onclick="togglePwdVisiblity('login-pass',this)"
-              style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;color:rgba(245,245,220,0.3);">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+            <button type="button" onclick="handleLogin(document.getElementById('login-email').value, document.getElementById('login-pass').value)" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Connexion</button>
           </div>
 
           <!-- MOT DE PASSE OUBLIÉ -->
