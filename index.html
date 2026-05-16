@@ -7459,12 +7459,15 @@ ${coherenceContext}
     var b = document.getElementById('cookie-banner');
     if (b) { b.style.opacity='0'; b.style.transition='opacity 0.4s'; setTimeout(function(){b.style.display='none';},400); }
   }
-  </script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-      const SUPABASE_URL = "https://qiarpsfiadpxckqayrrr.supabase.co";
-      const SUPABASE_ANON_KEY = "sb_publishable_AjgGIifUVk5yBo_jsoo_tQ_guvbjE4y";
-      const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co"; 
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrcWF5cnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTM1MDUsImV4cCI6MjA5NDUyOTUwNX0._qiQGGEG0o9rLVqaMmJNwBfDkHSXdw_rr-v6ZSPEcME"; 
+
+  window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+</script>
+
+<script src="auth.js"></script>
 </body>
 </html>
