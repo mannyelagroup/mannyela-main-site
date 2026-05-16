@@ -7460,6 +7460,11 @@ ${coherenceContext}
     if (b) { b.style.opacity='0'; b.style.transition='opacity 0.4s'; setTimeout(function(){b.style.display='none';},400); }
   }
   </script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      const SUPABASE_URL = "https://qiarpsfiadpxckqayrrr.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_AjgGIifUVk5yBo_jsoo_tQ_guvbjE4y";
+      const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
 </body>
 </html>
