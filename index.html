@@ -1,20 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr" style="background-color: #001E21;">
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    (function() {
-      const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co";
-      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
-
-      if (typeof supabase !== 'undefined' && supabase.createClient) {
-        window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      } else if (typeof Supabase !== 'undefined' && Supabase.createClient) {
-        window.supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
-    })();
-  </script>
-</head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <!-- PWA / Mobile App Meta -->
@@ -42,6 +28,22 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- ══ SUPABASE AUTH ══════════════════════════════════════════════════ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function() {
+      var SUPABASE_URL     = "https://qiarpsfiadpxckayrrrr.supabase.co";
+      var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
+      try {
+        if (window.supabase && window.supabase.createClient) {
+          window._supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } else if (window.Supabase && window.Supabase.createClient) {
+          window._supabaseClient = window.Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+      } catch(e) { console.warn('[Supabase] Init failed:', e); }
+    })();
+  </script>
 
   <script>
     tailwind.config = {
@@ -2138,7 +2140,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
             </div>
-            <button type="button" onclick="handleLogin(document.getElementById('login-email').value, document.getElementById('login-pass').value)" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Connexion</button>
+            <button onclick="togglePwdVisiblity('login-pass',this)"
+              style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;color:rgba(245,245,220,0.3);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
 
           <!-- MOT DE PASSE OUBLIÉ -->
@@ -2211,11 +2216,13 @@
             </button>
           </div>
 
+          <!-- CGU — case personnalisée, liens en modal sans conflit -->
           <input type="checkbox" id="reg-cgu" style="display:none;">
 
           <div id="reg-cgu-label" style="padding:0.85rem;border:1px solid rgba(245,245,220,0.08);background:rgba(255,255,255,0.01);transition:border-color 0.2s;">
             <div style="display:flex;align-items:flex-start;gap:0.75rem;">
 
+              <!-- Case à cocher visuelle -->
               <div id="reg-cgu-box" onclick="toggleCGU()"
                 style="width:22px;height:22px;min-width:22px;border:1.5px solid rgba(245,245,220,0.25);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;margin-top:1px;">
                 <svg id="reg-cgu-check" width="13" height="13" viewBox="0 0 12 12" fill="none" style="display:none;">
@@ -2223,6 +2230,7 @@
                 </svg>
               </div>
 
+              <!-- Texte avec liens -->
               <p style="font-size:9px;color:rgba(245,245,220,0.45);line-height:1.8;">
                 J'accepte les
                 <span onclick="showLegalModal('cgu')" style="color:rgba(196,149,106,0.7);cursor:pointer;text-decoration:underline;">Conditions Générales d'Utilisation et de Vente</span>
@@ -2232,13 +2240,12 @@
               </p>
             </div>
           </div>
-          
-          <button type="button" onclick="if(window.supabase){ handleSignUp(document.getElementById('reg-email').value, document.getElementById('reg-pass').value) }else{ alert('Initialisation de la base de données... Veuillez réessayer dans un instant.'); }" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Rejoindre la Maison</button>
-          
+
           <p id="reg-cgu-error" style="display:none;font-size:9px;font-family:'Cinzel',serif;color:rgba(220,80,80,0.85);padding:3px 0 0 2px;">
             ✕ Veuillez cocher la case pour continuer
           </p>
 
+          <button class="btn-mannyela w-full mt-1" onclick="doRegister()">Créer mon compte ✦</button>
           <p class="text-center text-[10px] text-white/25 mt-2">
             Déjà membre ?
             <span onclick="goTo('login')" class="text-accent/50 cursor-pointer hover:text-accent/80 transition-colors font-cinzel tracking-wider"> Se connecter</span>
@@ -2379,24 +2386,24 @@
 
 
   function doRegister() {
-    const name    = document.getElementById('reg-name')?.value?.trim();
-    const email   = document.getElementById('reg-email')?.value?.trim();
-    const dob     = document.getElementById('reg-dob')?.value;
-    const pass    = document.getElementById('reg-pass')?.value;
-    const confirm = document.getElementById('reg-pass-confirm')?.value;
-    const cgu     = document.getElementById('reg-cgu')?.checked;
+    var name    = document.getElementById('reg-name')?.value?.trim();
+    var email   = document.getElementById('reg-email')?.value?.trim();
+    var dob     = document.getElementById('reg-dob')?.value;
+    var pass    = document.getElementById('reg-pass')?.value;
+    var confirm = document.getElementById('reg-pass-confirm')?.value;
+    var cgu     = document.getElementById('reg-cgu')?.checked;
 
-    if (!name || !email)        { showNotify('Prénom et email obligatoires'); return; }
-    if (!email.includes('@'))   { showNotify('Email invalide'); return; }
-    if (!dob)                   { showNotify('Date de naissance obligatoire'); return; }
-    if (!pass || pass.length < 8) { showNotify('Mot de passe : 8 caractères minimum'); return; }
-    if (pass !== confirm)       { showNotify('Les mots de passe ne correspondent pas'); return; }
+    if (!name || !email)           { showNotify('Prénom et email obligatoires'); return; }
+    if (!email.includes('@'))      { showNotify('Email invalide'); return; }
+    if (!dob)                      { showNotify('Date de naissance obligatoire'); return; }
+    if (!pass || pass.length < 8)  { showNotify('Mot de passe : 8 caractères minimum'); return; }
+    if (pass !== confirm)          { showNotify('Les mots de passe ne correspondent pas'); return; }
     if (!cgu) {
-      const errEl = document.getElementById('reg-cgu-error');
+      var errEl = document.getElementById('reg-cgu-error');
       if (errEl) errEl.style.display = 'block';
-      const label = document.getElementById('reg-cgu-label');
+      var label = document.getElementById('reg-cgu-label');
       if (label) { label.style.borderColor = 'rgba(220,80,80,0.4)'; label.scrollIntoView({behavior:'smooth',block:'center'}); }
-      const box = document.getElementById('reg-cgu-box');
+      var box = document.getElementById('reg-cgu-box');
       if (box) box.style.borderColor = 'rgba(220,80,80,0.5)';
       showNotify('Veuillez cocher la case CGU pour continuer');
       return;
@@ -2404,24 +2411,49 @@
 
     // Bloquer inscription sur le compte admin réservé
     if (email === 'rachelle@mannyelagroup.com') {
-      document.getElementById('login-error') && (document.getElementById('login-error').textContent = 'Cet email est réservé.');
-      document.getElementById('login-error') && (document.getElementById('login-error').style.display = 'block');
+      var errLogin = document.getElementById('login-error');
+      if (errLogin) { errLogin.textContent = 'Cet email est réservé.'; errLogin.style.display = 'block'; }
       return;
     }
 
-    // Sauvegarder le compte — isAdmin TOUJOURS false à l’inscription
-    CLIENT_ACCOUNTS[email] = { pwd: pass, name, dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
+    // ── Supabase Auth ────────────────────────────────────────────────────────
+    if (window._supabaseClient) {
+      var btn = document.querySelector('button[onclick="doRegister()"]');
+      if (btn) { btn.textContent = 'Création en cours…'; btn.disabled = true; }
 
-    state.isLoggedIn     = true;
-    state.user.name      = name;
-    state.user.email     = email;
-    state.user.dob       = dob;
-    state.user.isAdmin   = false;   // jamais admin à l’inscription
-    state.plan           = 'free';
+      window._supabaseClient.auth.signUp({
+        email: email,
+        password: pass,
+        options: { data: { name: name, dob: dob } }
+      }).then(function(result) {
+        if (btn) { btn.textContent = 'Créer mon compte ✦'; btn.disabled = false; }
+        if (result.error) {
+          showNotify('Erreur : ' + result.error.message);
+          return;
+        }
+        CLIENT_ACCOUNTS[email] = { pwd: pass, name: name, dob: dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
+        state.isLoggedIn = true; state.user.name = name; state.user.email = email;
+        state.user.dob = dob; state.user.isAdmin = false; state.plan = 'free';
+        renderAuthBar();
+        showNotify('Bienvenue dans la Maison Mannyela ✦');
+        renderChoixPlan();
+      }).catch(function(err) {
+        if (btn) { btn.textContent = 'Créer mon compte ✦'; btn.disabled = false; }
+        showNotify('Erreur inattendue. Réessayez.');
+        console.error('[Supabase signUp]', err);
+      });
+      return;
+    }
+
+    // ── Fallback local (mode démo) ───────────────────────────────────────────
+    CLIENT_ACCOUNTS[email] = { pwd: pass, name: name, dob: dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
+    state.isLoggedIn = true; state.user.name = name; state.user.email = email;
+    state.user.dob = dob; state.user.isAdmin = false; state.plan = 'free';
     renderAuthBar();
     showNotify('Bienvenue dans la Maison Mannyela ✦');
     renderChoixPlan();
   }
+
 
   function renderChoixPlan() {
     setActiveNav('nav-profile');
@@ -7468,8 +7500,7 @@ ${coherenceContext}
     var b = document.getElementById('cookie-banner');
     if (b) { b.style.opacity='0'; b.style.transition='opacity 0.4s'; setTimeout(function(){b.style.display='none';},400); }
   }
-  
+  </script>
 
-<script src="auth.js"></script>
 </body>
 </html>
