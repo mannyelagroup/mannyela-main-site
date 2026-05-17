@@ -2197,13 +2197,11 @@
             </button>
           </div>
 
-          <!-- CGU — case personnalisée, liens en modal sans conflit -->
           <input type="checkbox" id="reg-cgu" style="display:none;">
 
           <div id="reg-cgu-label" style="padding:0.85rem;border:1px solid rgba(245,245,220,0.08);background:rgba(255,255,255,0.01);transition:border-color 0.2s;">
             <div style="display:flex;align-items:flex-start;gap:0.75rem;">
 
-              <!-- Case à cocher visuelle -->
               <div id="reg-cgu-box" onclick="toggleCGU()"
                 style="width:22px;height:22px;min-width:22px;border:1.5px solid rgba(245,245,220,0.25);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;margin-top:1px;">
                 <svg id="reg-cgu-check" width="13" height="13" viewBox="0 0 12 12" fill="none" style="display:none;">
@@ -2211,7 +2209,6 @@
                 </svg>
               </div>
 
-              <!-- Texte avec liens -->
               <p style="font-size:9px;color:rgba(245,245,220,0.45);line-height:1.8;">
                 J'accepte les
                 <span onclick="showLegalModal('cgu')" style="color:rgba(196,149,106,0.7);cursor:pointer;text-decoration:underline;">Conditions Générales d'Utilisation et de Vente</span>
@@ -2221,7 +2218,9 @@
               </p>
             </div>
           </div>
-          <button type="button" onclick="handleSignUp(document.getElementById('reg-email').value, document.getElementById('reg-pass').value)" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Rejoindre la Maison</button>
+          
+          <button type="button" onclick="if(window.supabase){ handleSignUp(document.getElementById('reg-email').value, document.getElementById('reg-pass').value) }else{ alert('Initialisation de la base de données... Veuillez réessayer dans un instant.'); }" class="btn-mannyela w-full mt-2" style="font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;">Rejoindre la Maison</button>
+          
           <p id="reg-cgu-error" style="display:none;font-size:9px;font-family:'Cinzel',serif;color:rgba(220,80,80,0.85);padding:3px 0 0 2px;">
             ✕ Veuillez cocher la case pour continuer
           </p>
