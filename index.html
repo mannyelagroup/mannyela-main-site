@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="fr" style="background-color: #001E21;">
-<head><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  (function() {
-    const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function() {
+      const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
 
-    if (typeof supabase !== 'undefined' && supabase.createClient) {
-      window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } else if (typeof Supabase !== 'undefined' && Supabase.createClient) {
-      window.supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-  })();
-</script>
+      if (typeof supabase !== 'undefined' && supabase.createClient) {
+        window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } else if (typeof Supabase !== 'undefined' && Supabase.createClient) {
+        window.supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    })();
+  </script>
+</head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <!-- PWA / Mobile App Meta -->
