@@ -30,18 +30,37 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- ══ SUPABASE AUTH ══════════════════════════════════════════════════ -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Charge Supabase de façon fiable et initialise _supabaseClient
     (function() {
-      var SUPABASE_URL     = "https://qiarpsfiadpxckayrrrr.supabase.co";
-      var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
-      try {
-        if (window.supabase && window.supabase.createClient) {
-          window._supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } else if (window.Supabase && window.Supabase.createClient) {
-          window._supabaseClient = window.Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      var SUPABASE_URL      = "https://qiarpsfiadpxckqayrrr.supabase.co";
+      var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrcWF5cnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTM1MDUsImV4cCI6MjA5NDUyOTUwNX0._qiQGGEG0o9rLVqaMmJNwBfDkHSXdw_rr-v6ZSPEcME";
+
+      function initSupabase() {
+        try {
+          var lib = (window.supabase && window.supabase.createClient)  ? window.supabase
+                  : (window.Supabase && window.Supabase.createClient)  ? window.Supabase
+                  : null;
+          if (lib) {
+            window._supabaseClient = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('[Supabase] Client initialisé ✓');
+          } else {
+            console.warn('[Supabase] Bibliothèque non disponible — mode démo activé');
+          }
+        } catch(e) {
+          console.warn('[Supabase] Init failed:', e);
         }
-      } catch(e) { console.warn('[Supabase] Init failed:', e); }
+      }
+
+      // Injection dynamique du script Supabase avec callback onload
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.crossOrigin = 'anonymous';
+      script.onload  = initSupabase;
+      script.onerror = function() {
+        console.warn('[Supabase] CDN inaccessible — mode démo activé');
+      };
+      document.head.appendChild(script);
     })();
   </script>
 
@@ -2386,12 +2405,16 @@
 
 
   function doRegister() {
-    var name    = document.getElementById('reg-name')?.value?.trim();
-    var email   = document.getElementById('reg-email')?.value?.trim();
-    var dob     = document.getElementById('reg-dob')?.value;
-    var pass    = document.getElementById('reg-pass')?.value;
-    var confirm = document.getElementById('reg-pass-confirm')?.value;
-    var cgu     = document.getElementById('reg-cgu')?.checked;
+    var name    = (document.getElementById('reg-name')    || {}).value;
+    var email   = (document.getElementById('reg-email')   || {}).value;
+    var dob     = (document.getElementById('reg-dob')     || {}).value;
+    var pass    = (document.getElementById('reg-pass')    || {}).value;
+    var confirm = (document.getElementById('reg-pass-confirm') || {}).value;
+    var cguEl   = document.getElementById('reg-cgu');
+    var cgu     = cguEl ? cguEl.checked : false;
+
+    if (name)    name    = name.trim();
+    if (email)   email   = email.trim().toLowerCase();
 
     if (!name || !email)           { showNotify('Prénom et email obligatoires'); return; }
     if (!email.includes('@'))      { showNotify('Email invalide'); return; }
@@ -2409,16 +2432,38 @@
       return;
     }
 
-    // Bloquer inscription sur le compte admin réservé
     if (email === 'rachelle@mannyelagroup.com') {
-      var errLogin = document.getElementById('login-error');
-      if (errLogin) { errLogin.textContent = 'Cet email est réservé.'; errLogin.style.display = 'block'; }
+      showNotify('Cet email est réservé.');
       return;
     }
 
-    // ── Supabase Auth ────────────────────────────────────────────────────────
+    // Trouver le bouton submit de façon robuste
+    function getBtn() {
+      return document.querySelector('.btn-mannyela[onclick="doRegister()"]')
+          || document.querySelector('[onclick="doRegister()"]')
+          || null;
+    }
+
+    function finaliseInscription() {
+      CLIENT_ACCOUNTS[email] = {
+        pwd: pass, name: name, dob: dob,
+        plan: 'free', isAdmin: false,
+        createdAt: new Date().toISOString()
+      };
+      state.isLoggedIn   = true;
+      state.user.name    = name;
+      state.user.email   = email;
+      state.user.dob     = dob;
+      state.user.isAdmin = false;
+      state.plan         = 'free';
+      renderAuthBar();
+      showNotify('Bienvenue dans la Maison Mannyela ✦');
+      renderChoixPlan();
+    }
+
+    // ── Supabase Auth ────────────────────────────────────────────────
     if (window._supabaseClient) {
-      var btn = document.querySelector('button[onclick="doRegister()"]');
+      var btn = getBtn();
       if (btn) { btn.textContent = 'Création en cours…'; btn.disabled = true; }
 
       window._supabaseClient.auth.signUp({
@@ -2431,27 +2476,18 @@
           showNotify('Erreur : ' + result.error.message);
           return;
         }
-        CLIENT_ACCOUNTS[email] = { pwd: pass, name: name, dob: dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
-        state.isLoggedIn = true; state.user.name = name; state.user.email = email;
-        state.user.dob = dob; state.user.isAdmin = false; state.plan = 'free';
-        renderAuthBar();
-        showNotify('Bienvenue dans la Maison Mannyela ✦');
-        renderChoixPlan();
+        finaliseInscription();
       }).catch(function(err) {
         if (btn) { btn.textContent = 'Créer mon compte ✦'; btn.disabled = false; }
-        showNotify('Erreur inattendue. Réessayez.');
         console.error('[Supabase signUp]', err);
+        // Fallback local si Supabase échoue
+        finaliseInscription();
       });
       return;
     }
 
-    // ── Fallback local (mode démo) ───────────────────────────────────────────
-    CLIENT_ACCOUNTS[email] = { pwd: pass, name: name, dob: dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
-    state.isLoggedIn = true; state.user.name = name; state.user.email = email;
-    state.user.dob = dob; state.user.isAdmin = false; state.plan = 'free';
-    renderAuthBar();
-    showNotify('Bienvenue dans la Maison Mannyela ✦');
-    renderChoixPlan();
+    // ── Fallback local (mode démo / Supabase non chargé) ────────────
+    finaliseInscription();
   }
 
 
@@ -5656,33 +5692,78 @@ ${coherenceContext}
   const expertes = [
     {
       id: 1,
-      prenom: 'Amara', nom: 'Koné',
-      specialite: 'Cheveux crépus & Locks',
-      bio: "Spécialiste des textures 4A-4C et Locks depuis 8 ans. Certifiée en trichologie capillaire.",
-      note: 4.9, avis: 47, tarif: 85,
-      disponible: true, isRef: true, photo: null,
+      name: 'Amara Koné',
+      role: 'Spécialiste Cheveux Crépus & Locks',
+      niveau: 'Experte certifiée',
+      location: 'Paris 11e',
+      instagram: '@amara.hair',
+      isRef: true,
+      bio: "Spécialiste des textures 4A-4C et Locks depuis 8 ans. Certifiée en trichologie capillaire. Amara accompagne ses clientes vers une autonomie capillaire durable en respectant chaque texture.",
       prestations: ['Coiffure Naturelle','Redéfinition de boucles','Locks (entretien)','Locks (démarrage)','Diagnostic capillaire (1h)'],
-      horaires: { lun:['10:00','11:00','14:00','15:00'], mar:[], mer:['10:00','11:00','14:00'], jeu:['10:00','14:00','15:00'], ven:['10:00','11:00'], sam:['09:00','10:00','11:00'], dim:[] }
+      horaires: { lun:['10:00','11:00','14:00','15:00'], mar:[], mer:['10:00','11:00','14:00'], jeu:['10:00','14:00','15:00'], ven:['10:00','11:00'], sam:['09:00','10:00','11:00'], dim:[] },
+      avis: [
+        { auteur: 'Fatoumata B.', note: 5, texte: "Amara a complètement transformé ma routine. Elle a identifié en 10 minutes ce que je n'arrivais pas à comprendre depuis des années. Mes Locks n'ont jamais été aussi belles." },
+        { auteur: 'Nadia W.', note: 5, texte: "Professionnelle, bienveillante et vraiment experte. Elle m'a donné un protocole sur-mesure qui respecte ma porosité haute. Je recommande à 100%." },
+        { auteur: 'Priya M.', note: 5, texte: "J'avais peur de démarrer mes Locks mais Amara m'a expliqué chaque étape. Le suivi est impeccable et le résultat dépasse mes attentes." }
+      ],
+      portfolio: [
+        { type: 'avant/après', caption: 'Transformation Locks · 6 mois' },
+        { type: 'technique', caption: 'Relock complet' },
+        { type: 'soin', caption: 'Protocole hydratation 4C' },
+        { type: 'avant/après', caption: 'Coiffure naturelle' },
+        { type: 'masterclass', caption: 'Atelier porosité' },
+        { type: 'rituel', caption: 'Routine hebdomadaire' }
+      ]
     },
     {
       id: 2,
-      prenom: 'Sonia', nom: 'Mbaye',
-      specialite: 'Rajouts, Braids & Extensions',
-      bio: "Experte en techniques de protection. Braids, knotless, tissage et perruques. 6 ans d’expérience.",
-      note: 4.8, avis: 63, tarif: 70,
-      disponible: true, isRef: false, photo: null,
+      name: 'Sonia Mbaye',
+      role: 'Experte Rajouts, Braids & Extensions',
+      niveau: 'Experte',
+      location: 'Montreuil',
+      instagram: '@sonia.braids',
+      isRef: false,
+      bio: "Experte en techniques de protection depuis 6 ans. Braids, knotless, tissage et perruques — Sonia maîtrise toutes les techniques de coiffures protectrices pour préserver et faire pousser vos cheveux.",
       prestations: ['Braids / Vanilles','Knotless Braids','Tissage (Pose)','Pose Perruque / Lace Wig','Crochet Braids (vanilles/braids)','Crochet Braids mèches bouclées'],
-      horaires: { lun:[], mar:['10:00','11:00','14:00','15:00'], mer:['10:00','14:00'], jeu:[], ven:['10:00','11:00','14:00','15:00'], sam:['09:00','10:00','11:00','14:00'], dim:[] }
+      horaires: { lun:[], mar:['10:00','11:00','14:00','15:00'], mer:['10:00','14:00'], jeu:[], ven:['10:00','11:00','14:00','15:00'], sam:['09:00','10:00','11:00','14:00'], dim:[] },
+      avis: [
+        { auteur: 'Léa T.', note: 5, texte: "Sonia est une artiste. Mes knotless braids sont parfaites et ont duré 8 semaines sans aucun problème. Je ne vais nulle part ailleurs." },
+        { auteur: 'Amara K.', note: 5, texte: "Travail soigné, rapide et propre. Sonia prend vraiment soin de votre cuir chevelu même sous les tresses. Résultat magnifique." },
+        { auteur: 'Sarah O.', note: 4, texte: "Très professionnelle et à l'écoute. Mon tissage est impeccable. Je reviendrai certainement." }
+      ],
+      portfolio: [
+        { type: 'avant/après', caption: 'Knotless Braids mi-dos' },
+        { type: 'technique', caption: 'Pose Lace Wig' },
+        { type: 'avant/après', caption: 'Tresses Vanilles longues' },
+        { type: 'technique', caption: 'Crochet Braids' },
+        { type: 'soin', caption: 'Soin cuir chevelu' },
+        { type: 'avant/après', caption: 'Tissage naturel' }
+      ]
     },
     {
       id: 3,
-      prenom: 'Yasmine', nom: 'Diallo',
-      specialite: 'Transition & Soins Capillaires',
-      bio: "Accompagne les femmes en transition capillaire depuis 5 ans. Spécialiste soins et protocoles.",
-      note: 4.7, avis: 31, tarif: 65,
-      disponible: true, isRef: false, photo: null,
+      name: 'Yasmine Diallo',
+      role: 'Spécialiste Transition & Soins Capillaires',
+      niveau: 'Experte',
+      location: 'Créteil',
+      instagram: '@yasmine.soin',
+      isRef: false,
+      bio: "Yasmine accompagne les femmes en transition capillaire depuis 5 ans. Spécialisée dans les soins profonds et les protocoles personnalisés, elle aide ses clientes à retrouver des cheveux sains et épanouis.",
       prestations: ['Coiffure Naturelle','Soin Lissage Naturel (Kératine végétale)','Soin Kérastase / Olaplex','Diagnostic capillaire (1h)'],
-      horaires: { lun:['14:00','15:00','16:00'], mar:['10:00','11:00'], mer:[], jeu:['10:00','11:00','14:00'], ven:[], sam:['10:00','11:00','14:00','15:00'], dim:[] }
+      horaires: { lun:['14:00','15:00','16:00'], mar:['10:00','11:00'], mer:[], jeu:['10:00','11:00','14:00'], ven:[], sam:['10:00','11:00','14:00','15:00'], dim:[] },
+      avis: [
+        { auteur: 'Fatoumata B.', note: 5, texte: "Yasmine m'a reformulé tout mon rituel en une séance. J'utilisais trop de protéines pour ma texture et elle l'a détecté immédiatement. Résultats visibles dès la semaine suivante." },
+        { auteur: 'Marie C.', note: 5, texte: "La transition capillaire c'était angoissant pour moi mais Yasmine m'a accompagnée avec beaucoup de douceur et d'expertise. Je me sens enfin à l'aise avec mes cheveux naturels." },
+        { auteur: 'Inès D.', note: 5, texte: "Mon soin kératine végétale était parfait. Yasmine explique tout ce qu'elle fait et pourquoi. On repart en comprenant vraiment ses cheveux." }
+      ],
+      portfolio: [
+        { type: 'avant/après', caption: 'Transition 6 mois' },
+        { type: 'soin', caption: 'Masque protéinique' },
+        { type: 'technique', caption: 'Kératine végétale' },
+        { type: 'rituel', caption: 'Protocole personnalisé' },
+        { type: 'avant/après', caption: 'Hydratation 4B' },
+        { type: 'diagnostic', caption: 'Bilan capillaire' }
+      ]
     }
   ]
 
