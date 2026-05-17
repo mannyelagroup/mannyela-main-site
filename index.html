@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr" style="background-color: #001E21;">
-<head>
+<head><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  (function() {
+    const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrYXlycnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODMxNzksImV4cCI6MjA1ODc1OTE3OX0.gI7gWpXqQ_gq0W6m_wF2LgZ_z0B8YI4_v_y_Y_Y_Y_Y";
+
+    if (typeof supabase !== 'undefined' && supabase.createClient) {
+      window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } else if (typeof Supabase !== 'undefined' && Supabase.createClient) {
+      window.supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  })();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <!-- PWA / Mobile App Meta -->
@@ -7454,14 +7466,7 @@ ${coherenceContext}
     var b = document.getElementById('cookie-banner');
     if (b) { b.style.opacity='0'; b.style.transition='opacity 0.4s'; setTimeout(function(){b.style.display='none';},400); }
   }
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script>
-  const SUPABASE_URL = "https://qiarpsfiadpxckayrrrr.supabase.co"; 
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYXJwc2ZpYWRweGNrcWF5cnJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NTM1MDUsImV4cCI6MjA5NDUyOTUwNX0._qiQGGEG0o9rLVqaMmJNwBfDkHSXdw_rr-v6ZSPEcME"; 
-
-  window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-</script>
+  
 
 <script src="auth.js"></script>
 </body>
