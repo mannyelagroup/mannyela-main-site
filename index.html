@@ -1658,6 +1658,8 @@
             legal:       { nav: '',                 fn: renderLegal },
       videoteque:  { nav: 'nav-videotheque',  fn: renderVideotheque },
       accueil:     { nav: 'nav-home',         fn: () => state.isLoggedIn ? renderProfile() : renderLanding() },
+      dashboard:   { nav: 'nav-home',         fn: () => state.isLoggedIn ? renderProfile() : renderLanding() },
+      home:        { nav: 'nav-home',         fn: () => state.isLoggedIn ? renderProfile() : renderLanding() },
       admin:       { nav: '',                 fn: () => state.user.isAdmin ? renderAdminPanel() : goTo('landing') },
     };
     const p = pages[page];
@@ -2690,8 +2692,47 @@
     // Vérifier dans la base locale des comptes
     const account = CLIENT_ACCOUNTS[email];
     if (!account || account.pwd !== pwd) {
-      document.getElementById('login-error').textContent = 'Identifiants incorrects.';
-      document.getElementById('login-error').style.display = 'block';
+      // Tentative Supabase si compte local non trouvé
+      const sbClient = window._supabaseClient || window.supabase;
+      if (sbClient && sbClient.auth) {
+        try {
+          const { data, error } = await sbClient.auth.signInWithPassword({ email, password: pwd });
+          if (!error && data && data.user) {
+            state.isLoggedIn = true;
+            state.user.name  = data.user.user_metadata?.name || email.split('@')[0];
+            state.user.email = email;
+            state.user.plan  = data.user.user_metadata?.plan || 'plante';
+            state.user.isAdmin = (email === 'rachelle@mannyelagroup.com');
+            state.plan = state.user.plan;
+            // Add to local accounts for future use
+            CLIENT_ACCOUNTS[email] = {
+              pwd: pwd, name: state.user.name,
+              plan: state.user.plan, isAdmin: state.user.isAdmin
+            };
+            renderAuthBar();
+            showNotify('Bienvenue, ' + state.user.name + ' ✦');
+            goTo('accueil');
+            return;
+          }
+          if (error) {
+            const errEl = document.getElementById('login-error');
+            var msg = error.message || 'Identifiants incorrects';
+            if (msg.includes('Email not confirmed')) {
+              msg = 'Vérifiez votre boîte mail — confirmez votre email avant de vous connecter';
+            } else if (msg.includes('Invalid login')) {
+              msg = 'Email ou mot de passe incorrect';
+            }
+            if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+            showNotify(msg);
+            return;
+          }
+        } catch(e) {
+          console.warn('Supabase login:', e.message);
+        }
+      }
+      const errEl = document.getElementById('login-error');
+      if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect.'; errEl.style.display = 'block'; }
+      showNotify('Email ou mot de passe incorrect');
       return;
     }
 
@@ -2844,18 +2885,62 @@
       return;
     }
 
-    // Sauvegarder le compte — isAdmin TOUJOURS false à l’inscription
-    CLIENT_ACCOUNTS[email] = { pwd: pass, name, dob, plan: 'free', isAdmin: false, createdAt: new Date().toISOString() };
+    // ── Try Supabase signUp first ───────────────────────────────────────
+    const sbClient = window._supabaseClient || window.supabase;
+    if (sbClient && sbClient.auth) {
+      try {
+        const { data, error } = await sbClient.auth.signUp({
+          email,
+          password: pass,
+          options: { data: { name, dob } }
+        });
+        if (error) {
+          showNotify(error.message || 'Erreur lors de la création du compte');
+          return;
+        }
+        if (data && data.user) {
+          if (!data.session) {
+            // Email confirmation required — but still add to local accounts
+            // so they can login once confirmed
+            CLIENT_ACCOUNTS[email] = {
+              pwd: pass, name: name, dob: dob,
+              plan: 'plante', isAdmin: false,
+              createdAt: new Date().toISOString(),
+              needsConfirm: true
+            };
+            showNotify('✦ Compte créé — vérifiez votre boîte mail pour confirmer, puis connectez-vous');
+            setTimeout(() => goTo('login'), 3500);
+            return;
+          }
+          // Logged in immediately — no email confirmation needed
+          state.isLoggedIn   = true;
+          state.user.name    = name;
+          state.user.email   = email;
+          state.user.dob     = dob;
+          state.user.isAdmin = false;
+          state.plan         = 'plante';
+          CLIENT_ACCOUNTS[email] = { pwd: pass, name, dob, plan: 'plante', isAdmin: false };
+          renderAuthBar();
+          showNotify('Bienvenue dans la Maison Mannyela ✦');
+          goTo('accueil');
+          return;
+        }
+      } catch(e) {
+        console.warn('Supabase signUp:', e.message);
+      }
+    }
 
+    // ── Local fallback ───────────────────────────────────────────────────
+    CLIENT_ACCOUNTS[email] = { pwd: pass, name, dob, plan: 'plante', isAdmin: false, createdAt: new Date().toISOString() };
     state.isLoggedIn     = true;
     state.user.name      = name;
     state.user.email     = email;
     state.user.dob       = dob;
-    state.user.isAdmin   = false;   // jamais admin à l’inscription
-    state.plan           = 'free';
+    state.user.isAdmin   = false;
+    state.plan           = 'plante';
     renderAuthBar();
     showNotify('Bienvenue dans la Maison Mannyela ✦');
-    renderChoixPlan();
+    goTo('accueil');
   }
 
   function renderChoixPlan() {
@@ -6219,6 +6304,16 @@ function buildElyaSystemPrompt() {
       adminLevel: 'fondatrice',
       createdAt: '2026-01-01',
     },
+    // ─── Compte Gmail (Rachelle — accès alternatif) ──────────────────────
+    'rachelle.bonsu@gmail.com': {
+      pwd: 'trackathlète1',
+      name: 'Rachelle',
+      dob: '1990-01-01',
+      plan: 'elite',
+      isAdmin: true,
+      adminLevel: 'fondatrice',
+      createdAt: '2026-01-01',
+    },
 
   };
 
@@ -8606,7 +8701,7 @@ function buildElyaSystemPrompt() {
           };
         }
         if (typeof showNotify === 'function') showNotify('Bienvenue ✦');
-        if (typeof goTo === 'function') goTo('dashboard');
+        if (typeof goTo === 'function') goTo('profile');
       } catch(err) {
         if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
         else alert('Erreur de connexion : ' + err.message);
