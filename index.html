@@ -1622,9 +1622,13 @@
           }
         }
         if (event === 'SIGNED_OUT') {
-          state.isLoggedIn = false;
-          state.user = null;
-          goTo('landing');
+          // Only logout if user authenticated via Supabase
+          // Local CLIENT_ACCOUNTS logins are not affected by Supabase session events
+          if (state.user && state.user.loginMethod === 'supabase') {
+            state.isLoggedIn = false;
+            state.user = null;
+            goTo('landing');
+          }
         }
       });
     }
@@ -1653,6 +1657,8 @@
       booking: { nav: '', fn: renderBooking },
       profile: { nav: 'nav-profile', fn: () => state.isLoggedIn ? renderProfile() : renderLoginGate('profile') },
       login: { nav: '', fn: renderLogin },
+      forgot: { nav: '', fn: renderForgotPassword },
+      'reset-password': { nav: '', fn: renderResetPassword },
       register: { nav: '', fn: renderRegister },
       abonnements: { nav: 'nav-abonnements', fn: renderAbonnements },
             legal:       { nav: '',                 fn: renderLegal },
@@ -2705,6 +2711,7 @@
             state.user.isAdmin = (email === 'rachelle@mannyelagroup.com');
             state.plan = state.user.plan;
             // Add to local accounts for future use
+            state.user.loginMethod = 'supabase';
             CLIENT_ACCOUNTS[email] = {
               pwd: pwd, name: state.user.name,
               plan: state.user.plan, isAdmin: state.user.isAdmin
@@ -2741,6 +2748,7 @@
     state.user.name    = account.name;
     state.user.email   = email;
     state.user.plan    = account.plan || 'free';
+    state.user.loginMethod = 'local';
     // Seul rachelle@mannyelagroup.com peut être admin — sécurité absolue
     state.user.isAdmin = (email === 'rachelle@mannyelagroup.com') && (account.isAdmin === true);
     state.plan         = account.plan || 'free';
@@ -8633,12 +8641,14 @@ function buildElyaSystemPrompt() {
 
       // Déconnexion
       if (event === 'SIGNED_OUT') {
-        console.log('Mannyela Auth: Déconnexion');
-        if (typeof state !== 'undefined') {
+        console.log('Mannyela Auth: SIGNED_OUT received');
+        // Only logout if user authenticated via Supabase
+        // Local CLIENT_ACCOUNTS logins must not be affected
+        if (typeof state !== 'undefined' && state.user && state.user.loginMethod === 'supabase') {
           state.isLoggedIn = false;
           state.user = null;
+          if (typeof goTo === 'function') goTo('landing');
         }
-        if (typeof goTo === 'function') goTo('landing');
       }
     });
 
