@@ -879,7 +879,7 @@
       </button>
       <button 
 
-      <a href="mannyela_experte_v1.8.html" target="_blank" style="display:inline-flex;align-items:center;gap:0.4rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.4);text-decoration:none;padding:0.4rem 0.75rem;border:1px solid rgba(196,149,106,0.15);transition:all 0.2s;" onmouseover="this.style.color='rgba(196,149,106,0.8)';this.style.borderColor='rgba(196,149,106,0.4)'" onmouseout="this.style.color='rgba(196,149,106,0.4)';this.style.borderColor='rgba(196,149,106,0.15)'">✦ Espace Experte</a>
+      <a href="mannyela_experte_v1.9.html" target="_blank" style="display:inline-flex;align-items:center;gap:0.4rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.4);text-decoration:none;padding:0.4rem 0.75rem;border:1px solid rgba(196,149,106,0.15);transition:all 0.2s;" onmouseover="this.style.color='rgba(196,149,106,0.8)';this.style.borderColor='rgba(196,149,106,0.4)'" onmouseout="this.style.color='rgba(196,149,106,0.4)';this.style.borderColor='rgba(196,149,106,0.15)'">✦ Espace Experte</a>
     </nav>
   
 </header>
@@ -909,9 +909,9 @@
       </button>
 
       <!-- Expertes -->
-      <button onclick="goTo('expertes')" id="bnav-expertes" class="bnav-btn" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:5px 6px;min-width:0;flex:1;">
+      <button onclick="goTo('community')" id="bnav-community" class="bnav-btn" style="display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:5px 6px;min-width:0;flex:1;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span style="font-family:'Cinzel',serif;font-size:6.5px;letter-spacing:0.06em;text-transform:uppercase;">Expertes</span>
+        <span style="font-family:'Cinzel',serif;font-size:6.5px;letter-spacing:0.06em;text-transform:uppercase;">Communauté</span>
       </button>
 
       <!-- Menu drawer -->
@@ -1651,6 +1651,7 @@
               name: session.user.user_metadata?.name || session.user.email.split('@')[0],
               id: session.user.id
             };
+            if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
           }
         }
         if (event === 'SIGNED_OUT') {
@@ -1672,7 +1673,7 @@
     state.step = page;
 
     // Sync bottom nav active state (mobile)
-    const bnavMap = { landing:'bnav-home', home:'bnav-home', booking:'bnav-booking', profile:'bnav-profil', login:'bnav-profil', register:'bnav-profil' };
+    const bnavMap = { landing:'bnav-home', home:'bnav-home', booking:'bnav-booking', profile:'bnav-profil', login:'bnav-profil', register:'bnav-profil', community:'bnav-community' };
     document.querySelectorAll('.bnav-btn').forEach(function(b){ b.classList.remove('active'); });
     const activeBnav = bnavMap[page];
     if (activeBnav) { const el = document.getElementById(activeBnav); if (el) el.classList.add('active'); }
@@ -2752,7 +2753,8 @@
             };
             renderAuthBar();
             showNotify('Bienvenue, ' + state.user.name + ' ✦');
-            goTo('accueil');
+            const _destSupa = pendingPage || null; pendingPage = null; state.pendingRoute = null;
+            goTo(_destSupa || 'accueil');
             return;
           }
           if (error) {
@@ -2786,6 +2788,14 @@
     // Seul rachelle@mannyelagroup.com peut être admin — sécurité absolue
     state.user.isAdmin = (email === 'rachelle@mannyelagroup.com') && (account.isAdmin === true);
     state.plan         = account.plan || 'free';
+    // Sauvegarder dans la liste partagée (visible par les expertes pour recherche cliente)
+    try {
+      var _pu = JSON.parse(localStorage.getItem('mannyela_platform_users') || '[]');
+      var _idx = _pu.findIndex(function(u){ return u.email === email; });
+      var _entry = { email: email, name: account.name, updatedAt: new Date().toISOString() };
+      if (_idx > -1) _pu[_idx] = _entry; else _pu.push(_entry);
+      localStorage.setItem('mannyela_platform_users', JSON.stringify(_pu));
+    } catch(e) {}
     renderAuthBar();
     if (account.isAdmin) {
       showNotify('Bienvenue Rachelle ✦ — Espace Admin activé');
@@ -2793,7 +2803,7 @@
       showNotify('Bienvenue, ' + account.name + ' ✦');
     }
     const dest = pendingPage || null;
-    pendingPage = null;
+    pendingPage = null; state.pendingRoute = null;
     if (dest) { goTo(dest); } else if (account.isAdmin) { goTo('admin'); } else { goTo('accueil'); }
   }
 
@@ -3224,9 +3234,8 @@
 
   function renderProfile() {
     if (!state.isLoggedIn) {
-      // Sauvegarder la page demandée pour y revenir après login
-      pendingPage = 'booking';
-      showNotify('Connectez-vous pour réserver ✦');
+      pendingPage = 'profile'; state.pendingRoute = 'profile';
+      showNotify('Connectez-vous pour accéder à votre profil ✦');
       goTo('login');
       return;
     }
@@ -3343,7 +3352,6 @@
             { id: 'rituel',   label: 'Mon Rituel',  svg: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10H12V2z"/><path d="M12 12H2A10 10 0 0 0 12 22V12z"/><circle cx="12" cy="12" r="3"/></svg>' },
             { id: 'messages',  label: 'Messages',   svg: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' },
             { id: 'communaute',label: 'Communauté', svg: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
-            { id: 'orders',    label: 'Commandes',  svg: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M16.5 9.4l-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>' },
             { id: 'securite',  label: 'Sécurité',   svg: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
 
           ].map(tab => `
@@ -4440,36 +4448,7 @@
           </div>
         ` : ''}
 
-        <!-- ── COMMANDES ── -->
-        ${state.profileTab === 'securite' ? renderSecuriteTab() : state.profileTab === 'orders' ? `
-          <div class="fade-in">
-            <div class="mb-8">
-              <p class="font-cinzel text-[9px] tracking-[0.4em] text-accent/30 uppercase mb-1">Historique</p>
-              <h3 class="font-cinzel text-xl text-accent/80">Mes Commandes</h3>
-            </div>
-            <div class="flex flex-col gap-3">
-              ${(state.orders||[]).map(o => `
-                <div class="glass-box p-5 border border-accent/8 flex justify-between items-center">
-                  <div>
-                    <p class="font-cinzel text-xs text-accent/70 mb-1">${o.item}</p>
-                    <p style="font-size:9px;color:rgba(245,245,220,0.25);">${o.id} · ${o.date}</p>
-                  </div>
-                  <div class="text-right flex flex-col items-end gap-2">
-                    <p class="font-cinzel text-sm text-accent/60">${o.total}</p>
-                    <span class="partner-badge text-[7px] ${o.status === 'Livré' ? 'opacity-60' : ''}">${o.status}</span>
-                  </div>
-                </div>
-              `).join('')}
-              ${(state.orders||[]).length === 0 ? `
-                <div class="glass-box p-10 text-center border border-accent/8">
-                  <p style="font-size:1.5rem;opacity:0.3;margin-bottom:0.75rem;">📦</p>
-                  <p class="font-cinzel text-sm text-accent/40">Aucune commande pour le moment</p>
-                </div>
-              ` : ''}
-            </div>
-
-          </div>
-        ` : state.profileTab === 'rituel' ? renderRoutineTab() : ''}
+        ${state.profileTab === 'securite' ? renderSecuriteTab() : state.profileTab === 'rituel' ? renderRoutineTab() : ''}
 
       </div>
     `);
@@ -4699,10 +4678,21 @@
     const reader = new FileReader();
     reader.onload = e => {
       state.user.photo = e.target.result;
+      try { if (state.user.email) localStorage.setItem('mannyela_photo_' + state.user.email, e.target.result); } catch(err) {}
       showNotify('Photo de profil mise à jour');
       renderProfile();
     };
     reader.readAsDataURL(file);
+  }
+
+  // Recharge la photo de profil sauvegardée localement (persiste après reconnexion)
+  function restoreProfilePhoto() {
+    try {
+      if (state.user && state.user.email && !state.user.photo) {
+        var saved = localStorage.getItem('mannyela_photo_' + state.user.email);
+        if (saved) state.user.photo = saved;
+      }
+    } catch(err) {}
   }
 
   // ═══════════════════════════════════════════
@@ -4966,7 +4956,7 @@
 
     // ── Vue portfolio d'une experte ──────────────────────────────────────────
     if (selectedExp) {
-      var exp = live.find(function(e) { return (e.id||e.email) === selectedExp; });
+      var exp = live.find(function(e) { return String(e.id||e.email) === String(selectedExp); });
       if (!exp) { state.expertesSelectedId = null; renderExpertes(); return; }
       var isM2 = exp.niveau&&(exp.niveau.includes('Mannyela')||exp.niveau.includes('✦')||exp.isRef);
       var today = new Date();
@@ -5109,7 +5099,7 @@
         <div style="margin-top:3rem;text-align:center;padding:2.5rem;border:1px solid rgba(245,245,220,0.06);">
           <p class="font-cinzel text-[9px] tracking-[0.4em] text-accent/25 uppercase mb-3">Rejoindre le réseau</p>
           <p style="font-size:12px;color:rgba(245,245,220,0.35);line-height:1.8;margin-bottom:1.5rem;">Vous êtes professionnelle capillaire ?<br>Réseau d'élite · 208 places.</p>
-          <button onclick="window.open('mannyela_experte_v1.8.html','_blank')" class="btn-secondary" style="font-size:0.6rem;">Candidater →</button>
+          <button onclick="window.open('mannyela_experte_v1.9.html','_blank')" class="btn-secondary" style="font-size:0.6rem;">Candidater →</button>
         </div>
       </div>
     `);
@@ -5123,7 +5113,7 @@
   }
 
   function renderExperteFiche() {
-    const e = expertes.find(x => x.id === state.selectedExperteId) || expertes[0];
+    const e = expertes.find(x => String(x.id) === String(state.selectedExperteId)) || expertes[0];
     render(`
       <div class="max-w-2xl mx-auto fade-in">
 
@@ -6538,7 +6528,7 @@ function buildElyaSystemPrompt() {
 
 
   function renderBooking() {
-    if (!state.isLoggedIn) { goTo('login'); return; }
+    if (!state.isLoggedIn) { pendingPage = 'booking'; state.pendingRoute = 'booking'; goTo('login'); return; }
     setActiveNav('');
 
     const steps = ['Experte','Prestations','Panier','Date','Créneau','Confirmation'];
@@ -6849,7 +6839,7 @@ function buildElyaSystemPrompt() {
   }
 
   function confirmerRdv() {
-    const expert = expertes.find(e => e.id === bookingState.selectedExpert);
+    const expert = expertes.find(e => String(e.id) === String(bookingState.selectedExpert));
     const dateObj = new Date(bookingState.selectedDate + 'T12:00:00');
     const dateLabel = dateObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
     const expertName = (expert.prenom || '') + ' ' + (expert.nom || '');
@@ -8419,7 +8409,7 @@ function buildElyaSystemPrompt() {
     try { c = localStorage.getItem('mannyela_cookies'); } catch(e){}
     if (!c) {
       var b = document.getElementById('cookie-banner');
-      if (b) b.style.display = &#39;block';
+      if (b) b.style.display = 'block';
     }
   })();
   function cookieChoice(choice) {
@@ -8595,7 +8585,7 @@ function buildElyaSystemPrompt() {
 
   <!-- Lien experte -->
   <div style="padding:1rem 1.5rem 0;">
-    <a href="mannyela_experte_v1.8.html" target="_blank"
+    <a href="mannyela_experte_v1.9.html" target="_blank"
       style="display:flex;align-items:center;gap:0.5rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.45);text-decoration:none;padding:0.75rem 1rem;border:1px solid rgba(196,149,106,0.15);">
       ✦ Espace Experte
     </a>
@@ -8676,6 +8666,7 @@ function buildElyaSystemPrompt() {
                   : session.user.email.split('@')[0],
             id: session.user.id
           };
+          if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
         }
       }
 
@@ -8749,9 +8740,12 @@ function buildElyaSystemPrompt() {
                   : res.data.user.email.split('@')[0],
             id: res.data.user.id
           };
+          if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
         }
         if (typeof showNotify === 'function') showNotify('Bienvenue ✦');
-        if (typeof goTo === 'function') goTo('profile');
+        var dest = (typeof state !== 'undefined' && state.pendingRoute) ? state.pendingRoute : 'profile';
+        if (typeof state !== 'undefined') state.pendingRoute = null;
+        if (typeof goTo === 'function') goTo(dest);
       } catch(err) {
         if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
         else alert('Erreur de connexion : ' + err.message);
