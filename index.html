@@ -4800,40 +4800,73 @@
     reader.readAsDataURL(file);
   }
 
-  function saveJournalEntry() {
-    if (state.plan === 'free' && state.journalEntries.length >= 5) {
-      showNotify('Limite de 5 entrées pour le profil gratuit ✦');
-      setTimeout(() => goTo('abonnements'), 1800);
-      return;
-    }
-    const title = document.getElementById('journal-title')?.value?.trim();
-    const text = document.getElementById('journal-text')?.value?.trim();
-    if (!title) { showNotify('Veuillez ajouter un titre'); return; }
-    const now = new Date();
-    const date = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-    state.journalEntries.unshift({
-      title, text: text || '',
-      date, timestamp: Date.now(),
-      tags: [...(state.journalTagsSelected||[])],
-      products: [...(state.journalProductsSelected||[])],
-      indicators: state.journalIndicators ? {...state.journalIndicators} : null,
-      weather: state.journalWeather || null,
-      photo: state.journalPhotoData || null
-    });
-    // Update streak
-    state.journalStreak = (state.journalStreak||0) + 1;
-    state.lastJournalTimestamp = Date.now(); // ✦ arrosage plante
-    // Reset
-    state.journalTagsSelected = [];
-    state.journalProductsSelected = [];
-    state.journalIndicators = {};
-    state.journalWeather = null;
-    state.journalPhotoData = null;
-    state.journalFormOpen = false;
-    showNotify('Entrée enregistrée 📖 — votre plante se réjouit !');
-    state.lastJournalTimestamp = Date.now();
-    switchProfileTab('journal');
+  async function saveJournalEntry() {
+  if (state.plan === 'free' && state.journalEntries.length >= 5) {
+    showNotify('Limite de 5 entrées pour le profil gratuit ✦');
+    setTimeout(() => goTo('abonnements'), 1800);
+    return;
   }
+  const title = document.getElementById('journal-title')?.value?.trim();
+  const text = document.getElementById('journal-text')?.value?.trim();
+  if (!title) { showNotify('Veuillez ajouter un titre'); return; }
+
+  const now = new Date();
+  const date = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  
+  const entryData = {
+    user_email: state.user?.email,
+    title, 
+    text: text || '',
+    date, 
+    timestamp: Date.now(),
+    tags: state.journalTagsSelected ? [...state.journalTagsSelected] : [],
+    products: state.journalProductsSelected ? [...state.journalProductsSelected] : [],
+    indicators: state.journalIndicators ? {...state.journalIndicators} : null,
+    weather: state.journalWeather || null,
+    photo: state.journalPhotoData || null
+  };
+
+  // Save to Supabase Production Table
+  var client = window._supabaseClient || window.supabase;
+  if (client) {
+    const { data, error } = await client
+      .from('journal_entries')
+      .insert([entryData])
+      .select();
+
+    if (error) { 
+      showNotify('Erreur sauvegarde — réessayez'); 
+      console.error("Supabase Error:", error.message); 
+      return; 
+    }
+    
+    // Use the exact record returned from Supabase (including its new unique ID)
+    if (data && data[0]) {
+      state.journalEntries.unshift(data[0]);
+    } else {
+      state.journalEntries.unshift(entryData);
+    }
+  } else {
+    state.journalEntries.unshift(entryData);
+  }
+
+  // Reset form states
+  state.journalStreak = (state.journalStreak||0) + 1;
+  state.lastJournalTimestamp = Date.now();
+  state.journalTagsSelected = [];
+  state.journalProductsSelected = [];
+  state.journalIndicators = {};
+  state.journalWeather = null;
+  state.journalPhotoData = null;
+  state.journalFormOpen = false;
+  
+  // Clear the actual input text fields so they are clean for next time
+  if(document.getElementById('journal-title')) document.getElementById('journal-title').value = '';
+  if(document.getElementById('journal-text')) document.getElementById('journal-text').value = '';
+  
+  showNotify('Entrée enregistrée  — votre plante se réjouit !');
+  switchProfileTab('journal');
+}
 
   // ═══════════════════════════════════════════
   // PAGE NOS EXPERTES
