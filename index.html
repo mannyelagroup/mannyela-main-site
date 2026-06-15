@@ -8778,6 +8778,21 @@ function buildElyaSystemPrompt() {
           };
           if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
         }
+        // Load journal from Supabase
+        var journalClient = window._supabaseClient || window.supabase || client;
+        if (journalClient && res.data?.user?.email) {
+          journalClient.from('journal_entries')
+            .select('*')
+            .eq('user_email', res.data.user.email)
+            .order('timestamp', { ascending: false })
+            .then(({ data }) => {
+              if (data) {
+                state.journalEntries = data;
+                state.journalStreak = data.length;
+                if (typeof renderJournal === 'function') renderJournal();
+              }
+            });
+        }
         if (typeof showNotify === 'function') showNotify('Bienvenue ✦');
         var dest = (typeof state !== 'undefined' && state.pendingRoute) ? state.pendingRoute : 'profile';
         if (typeof state !== 'undefined') state.pendingRoute = null;
