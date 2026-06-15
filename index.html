@@ -1515,12 +1515,15 @@
     // ou: ?type=recovery dans certaines configs
     if (
       hash.includes('type=recovery') ||
-      hash.includes('type=signup') ||
       search.includes('reset=true') ||
       search.includes('type=recovery')
     ) {
       goTo('reset-password');
     }
+    if (hash.includes('type=signup')) {
+  showNotify('✦ Email confirmé — vous pouvez vous connecter');
+  goTo('login');
+}
   }
 
   function renderResetPassword() {
