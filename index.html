@@ -2757,7 +2757,7 @@
             if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
             showNotify('Bienvenue, ' + state.user.name + ' ✦');
             const _destSupa = pendingPage || null; pendingPage = null; state.pendingRoute = null;
-            goTo(_destSupa || 'accueil');
+            goTo(_destSupa || (state.user.isAdmin ? 'admin' : 'accueil'));
             return;
           }
           if (error) {
@@ -5837,11 +5837,17 @@ function buildElyaSystemPrompt() {
   }
 
   function upgradePlan(plan) {
-    // Utiliser Stripe pour les paiements réels
-    if (plan !== 'free' && typeof stripe !== 'undefined') {
-      stripeSubscribe(plan);
+    // Plans payants (Journal / Premium / Élite) : paiement Stripe OBLIGATOIRE.
+    // Jamais d'activation gratuite, même si Stripe n'est pas disponible.
+    if (plan !== 'free' && plan !== 'plante') {
+      if (typeof stripe !== 'undefined' && stripe && typeof stripeSubscribe === 'function') {
+        stripeSubscribe(plan);
+      } else {
+        showNotify('Paiement temporairement indisponible — réessayez dans un instant.');
+      }
       return;
     }
+    // Seuls les plans gratuits (free / plante) s'activent directement
     state.plan = plan;
     state.subscriptionMonths = 1;
     state.subscriptionStartDate = new Date().toISOString();
