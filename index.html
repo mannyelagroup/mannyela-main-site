@@ -2729,7 +2729,7 @@
   async function doLogin() {
     window.supabase = window.supabase || window._supabaseClient;
     const email = (document.getElementById('login-email') || document.querySelector('input[type="email"]') || {value:''}).value?.trim().toLowerCase();
-    const pwd   = (document.getElementById('login-password') || document.querySelector('input[type="password"]') || {value:''}).value;
+    const pwd   = ((document.getElementById('login-password') || document.querySelector('input[type="password"]') || {value:''}).value || '').replace(/[\r\n\t]/g,'').trim();
     if (!email || !pwd) { showNotify('Email et mot de passe requis'); return; }
 
     // Vérifier dans la base locale des comptes
