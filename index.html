@@ -1515,15 +1515,12 @@
     // ou: ?type=recovery dans certaines configs
     if (
       hash.includes('type=recovery') ||
+      hash.includes('type=signup') ||
       search.includes('reset=true') ||
       search.includes('type=recovery')
     ) {
       goTo('reset-password');
     }
-    if (hash.includes('type=signup')) {
-  showNotify('✦ Email confirmé — vous pouvez vous connecter');
-  goTo('login');
-}
   }
 
   function renderResetPassword() {
@@ -1656,6 +1653,7 @@
             };
             if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
           }
+          if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
         }
         if (event === 'SIGNED_OUT') {
           // Only logout if user authenticated via Supabase
@@ -2380,6 +2378,7 @@
       mood: state.postMood,
       photos: [...state.postPhotos]
     });
+    if (window._mannyelaCloud) window._mannyelaCloud.savePost(state.communityFeed[0]);
     state.postPhotos = [];
     state.postTagsSelected = [];
     state.postMood = null;
@@ -2755,6 +2754,7 @@
               plan: state.user.plan, isAdmin: state.user.isAdmin
             };
             renderAuthBar();
+            if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
             showNotify('Bienvenue, ' + state.user.name + ' ✦');
             const _destSupa = pendingPage || null; pendingPage = null; state.pendingRoute = null;
             goTo(_destSupa || 'accueil');
@@ -4682,6 +4682,7 @@
     reader.onload = e => {
       state.user.photo = e.target.result;
       try { if (state.user.email) localStorage.setItem('mannyela_photo_' + state.user.email, e.target.result); } catch(err) {}
+      if (window._mannyelaCloud) window._mannyelaCloud.savePhoto(e.target.result);
       showNotify('Photo de profil mise à jour');
       renderProfile();
     };
@@ -4800,73 +4801,41 @@
     reader.readAsDataURL(file);
   }
 
-  async function saveJournalEntry() {
-  if (state.plan === 'free' && state.journalEntries.length >= 5) {
-    showNotify('Limite de 5 entrées pour le profil gratuit ✦');
-    setTimeout(() => goTo('abonnements'), 1800);
-    return;
-  }
-  const title = document.getElementById('journal-title')?.value?.trim();
-  const text = document.getElementById('journal-text')?.value?.trim();
-  if (!title) { showNotify('Veuillez ajouter un titre'); return; }
-
-  const now = new Date();
-  const date = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-  
-  const entryData = {
-    user_email: state.user?.email,
-    title, 
-    text: text || '',
-    date, 
-    timestamp: Date.now(),
-    tags: state.journalTagsSelected ? [...state.journalTagsSelected] : [],
-    products: state.journalProductsSelected ? [...state.journalProductsSelected] : [],
-    indicators: state.journalIndicators ? {...state.journalIndicators} : null,
-    weather: state.journalWeather || null,
-    photo: state.journalPhotoData || null
-  };
-
-  // Save to Supabase Production Table
-  var client = window._supabaseClient || window.supabase;
-  if (client) {
-    const { data, error } = await client
-      .from('journal_entries')
-      .insert([entryData])
-      .select();
-
-    if (error) { 
-      showNotify('Erreur sauvegarde — réessayez'); 
-      console.error("Supabase Error:", error.message); 
-      return; 
+  function saveJournalEntry() {
+    if (state.plan === 'free' && state.journalEntries.length >= 5) {
+      showNotify('Limite de 5 entrées pour le profil gratuit ✦');
+      setTimeout(() => goTo('abonnements'), 1800);
+      return;
     }
-    
-    // Use the exact record returned from Supabase (including its new unique ID)
-    if (data && data[0]) {
-      state.journalEntries.unshift(data[0]);
-    } else {
-      state.journalEntries.unshift(entryData);
-    }
-  } else {
-    state.journalEntries.unshift(entryData);
+    const title = document.getElementById('journal-title')?.value?.trim();
+    const text = document.getElementById('journal-text')?.value?.trim();
+    if (!title) { showNotify('Veuillez ajouter un titre'); return; }
+    const now = new Date();
+    const date = now.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    state.journalEntries.unshift({
+      title, text: text || '',
+      date, timestamp: Date.now(),
+      tags: [...(state.journalTagsSelected||[])],
+      products: [...(state.journalProductsSelected||[])],
+      indicators: state.journalIndicators ? {...state.journalIndicators} : null,
+      weather: state.journalWeather || null,
+      photo: state.journalPhotoData || null
+    });
+    // Update streak
+    state.journalStreak = (state.journalStreak||0) + 1;
+    state.lastJournalTimestamp = Date.now(); // ✦ arrosage plante
+    // Reset
+    state.journalTagsSelected = [];
+    state.journalProductsSelected = [];
+    state.journalIndicators = {};
+    state.journalWeather = null;
+    state.journalPhotoData = null;
+    state.journalFormOpen = false;
+    showNotify('Entrée enregistrée 📖 — votre plante se réjouit !');
+    state.lastJournalTimestamp = Date.now();
+    if (window._mannyelaCloud) window._mannyelaCloud.saveJournal(state.journalEntries[0]);
+    switchProfileTab('journal');
   }
-
-  // Reset form states
-  state.journalStreak = (state.journalStreak||0) + 1;
-  state.lastJournalTimestamp = Date.now();
-  state.journalTagsSelected = [];
-  state.journalProductsSelected = [];
-  state.journalIndicators = {};
-  state.journalWeather = null;
-  state.journalPhotoData = null;
-  state.journalFormOpen = false;
-  
-  // Clear the actual input text fields so they are clean for next time
-  if(document.getElementById('journal-title')) document.getElementById('journal-title').value = '';
-  if(document.getElementById('journal-text')) document.getElementById('journal-text').value = '';
-  
-  showNotify('Entrée enregistrée  — votre plante se réjouit !');
-  switchProfileTab('journal');
-}
 
   // ═══════════════════════════════════════════
   // PAGE NOS EXPERTES
@@ -8778,21 +8747,6 @@ function buildElyaSystemPrompt() {
           };
           if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
         }
-        // Load journal from Supabase
-        var journalClient = window._supabaseClient || window.supabase || client;
-        if (journalClient && res.data?.user?.email) {
-          journalClient.from('journal_entries')
-            .select('*')
-            .eq('user_email', res.data.user.email)
-            .order('timestamp', { ascending: false })
-            .then(({ data }) => {
-              if (data) {
-                state.journalEntries = data;
-                state.journalStreak = data.length;
-                if (typeof renderJournal === 'function') renderJournal();
-              }
-            });
-        }
         if (typeof showNotify === 'function') showNotify('Bienvenue ✦');
         var dest = (typeof state !== 'undefined' && state.pendingRoute) ? state.pendingRoute : 'profile';
         if (typeof state !== 'undefined') state.pendingRoute = null;
@@ -8826,5 +8780,131 @@ function buildElyaSystemPrompt() {
 </script>
 
   <script src="auth.js"></script>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MANNYELA CLOUD SYNC — Journal, Photo de profil & Posts Communauté
+       Sauvegarde et recharge les données dans Supabase (multi-appareils).
+       Nécessite les tables: journal_entries, community_posts, profiles
+       (voir le guide d'installation SQL fourni).
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    // Snapshot des posts de démonstration (pour les garder en plus des posts réels)
+    function _seedFeed() {
+      if (!window._mannyelaSeedFeed && typeof state !== 'undefined' && Array.isArray(state.communityFeed)) {
+        window._mannyelaSeedFeed = state.communityFeed.slice();
+      }
+      return window._mannyelaSeedFeed || [];
+    }
+
+    function _client() { return window._supabaseClient || window.supabase || null; }
+
+    // Renvoie l'utilisateur Supabase connecté (ou null si compte local / non connecté)
+    async function _sbUser() {
+      try {
+        var c = _client();
+        if (!c || !c.auth || !c.auth.getUser) return null;
+        var res = await c.auth.getUser();
+        return (res && res.data && res.data.user) ? res.data.user : null;
+      } catch (e) { return null; }
+    }
+
+    // ── JOURNAL ───────────────────────────────────────────────────────────
+    async function saveJournal(entry) {
+      // Cache local (secours hors-ligne / comptes locaux)
+      try {
+        if (state.user && state.user.email)
+          localStorage.setItem('mannyela_journal_' + state.user.email, JSON.stringify(state.journalEntries));
+      } catch (e) {}
+      var u = await _sbUser(); if (!u) return;
+      try { await _client().from('journal_entries').insert({ user_id: u.id, entry: entry }); }
+      catch (e) { console.warn('Cloud journal save:', e && e.message); }
+    }
+
+    // ── PHOTO DE PROFIL ─────────────────────────────────────────────────────
+    async function savePhoto(dataUrl) {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        await _client().from('profiles').upsert({
+          id: u.id, email: state.user && state.user.email, photo: dataUrl,
+          updated_at: new Date().toISOString()
+        });
+      } catch (e) { console.warn('Cloud photo save:', e && e.message); }
+    }
+
+    // ── POST COMMUNAUTÉ ─────────────────────────────────────────────────────
+    async function savePost(post) {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        await _client().from('community_posts').insert({
+          user_id: u.id, author: (state.user && state.user.name) || 'Membre', post: post
+        });
+      } catch (e) { console.warn('Cloud post save:', e && e.message); }
+    }
+
+    // ── CHARGEMENT À LA CONNEXION ───────────────────────────────────────────
+    async function loadAll() {
+      var u = await _sbUser();
+      if (!u) {
+        // Comptes locaux : recharger depuis le cache navigateur
+        try {
+          if (state.user && state.user.email) {
+            var cached = localStorage.getItem('mannyela_journal_' + state.user.email);
+            if (cached) state.journalEntries = JSON.parse(cached);
+            var ph = localStorage.getItem('mannyela_photo_' + state.user.email);
+            if (ph && state.user) state.user.photo = ph;
+          }
+        } catch (e) {}
+        _refresh();
+        return;
+      }
+      var c = _client();
+      try {
+        var je = await c.from('journal_entries').select('entry,created_at')
+                        .eq('user_id', u.id).order('created_at', { ascending: false });
+        if (je && je.data) state.journalEntries = je.data.map(function (r) { return r.entry; });
+      } catch (e) { console.warn('Cloud journal load:', e && e.message); }
+      try {
+        var cp = await c.from('community_posts').select('post,created_at')
+                        .order('created_at', { ascending: false }).limit(100);
+        if (cp && cp.data) {
+          var cloudPosts = cp.data.map(function (r) { return r.post; });
+          state.communityFeed = cloudPosts.concat(_seedFeed());
+        }
+      } catch (e) { console.warn('Cloud posts load:', e && e.message); }
+      try {
+        var pr = await c.from('profiles').select('photo').eq('id', u.id).maybeSingle();
+        if (pr && pr.data && pr.data.photo && state.user) state.user.photo = pr.data.photo;
+      } catch (e) { console.warn('Cloud profile load:', e && e.message); }
+      _refresh();
+    }
+
+    function _refresh() {
+      try {
+        if (typeof state === 'undefined') return;
+        if (state.step === 'profile' && typeof renderProfile === 'function') renderProfile();
+        else if (state.step === 'community' && typeof renderProfile === 'function' && state.isLoggedIn) renderProfile();
+        if (typeof renderAuthBar === 'function') renderAuthBar();
+      } catch (e) {}
+    }
+
+    // Exposition globale
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, loadAll: loadAll };
+
+    // Capturer les posts de démo dès que possible
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
+
+    // Recharger automatiquement quand une session Supabase démarre
+    (function hook() {
+      var c = _client();
+      if (!c || !c.auth || !c.auth.onAuthStateChange) { setTimeout(hook, 400); return; }
+      c.auth.onAuthStateChange(function (event, session) {
+        if (event === 'SIGNED_IN' && session) { setTimeout(loadAll, 200); }
+      });
+      // Si déjà connecté au chargement de la page
+      setTimeout(loadAll, 1200);
+    })();
+  })();
+  </script>
 </body>
 </html>
