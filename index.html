@@ -1649,8 +1649,12 @@
             state.user = {
               email: session.user.email,
               name: session.user.user_metadata?.name || session.user.email.split('@')[0],
-              id: session.user.id
+              id: session.user.id,
+              isAdmin: (session.user.email === 'rachelle@mannyelagroup.com'),
+              loginMethod: 'supabase'
             };
+            if (state.user.isAdmin) { state.user.plan = 'elite'; state.plan = 'elite'; }
+            if (typeof renderAuthBar === 'function') renderAuthBar();
             if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
           }
           if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
@@ -8675,8 +8679,12 @@ function buildElyaSystemPrompt() {
             name: (session.user.user_metadata && session.user.user_metadata.name)
                   ? session.user.user_metadata.name
                   : session.user.email.split('@')[0],
-            id: session.user.id
+            id: session.user.id,
+            isAdmin: (session.user.email === 'rachelle@mannyelagroup.com'),
+            loginMethod: 'supabase'
           };
+          if (state.user.isAdmin) { state.user.plan = 'elite'; state.plan = 'elite'; }
+          if (typeof renderAuthBar === 'function') renderAuthBar();
           if (typeof restoreProfilePhoto === 'function') restoreProfilePhoto();
         }
       }
@@ -8910,6 +8918,87 @@ function buildElyaSystemPrompt() {
       // Si déjà connecté au chargement de la page
       setTimeout(loadAll, 1200);
     })();
+  })();
+  </script>
+
+  <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v2 · 24-06</div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
+       Placé en TOUT DERNIER pour neutraliser tout remplacement de doLogin
+       par auth.js (qui forçait une connexion Supabase uniquement).
+       Le compte admin (rachelle@mannyelagroup.com / mannyela2026) fonctionne
+       de nouveau, et la connexion Supabase reste disponible en secours.
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <script>
+  (function () {
+    function localFirstLogin() {
+      try {
+        var emailEl = document.getElementById('login-email') || document.querySelector('input[type="email"]');
+        var passEl  = document.getElementById('login-password') || document.querySelector('input[type="password"]');
+        var email = (emailEl && emailEl.value ? emailEl.value : '').replace(/[\r\n\t]/g, '').trim().toLowerCase();
+        var pwd   = (passEl && passEl.value ? passEl.value : '').replace(/[\r\n\t]/g, '').trim();
+        if (!email || !pwd) { if (typeof showNotify === 'function') showNotify('Email et mot de passe requis'); return; }
+
+        var errEl = document.getElementById('login-error');
+
+        // 1) Comptes intégrés (CLIENT_ACCOUNTS) — inclut le compte admin
+        var acc = (typeof CLIENT_ACCOUNTS !== 'undefined') ? CLIENT_ACCOUNTS[email] : null;
+        if (acc && acc.pwd === pwd) {
+          state.isLoggedIn = true;
+          state.user = state.user || {};
+          state.user.name = acc.name || email.split('@')[0];
+          state.user.email = email;
+          state.user.plan = acc.plan || 'free';
+          state.user.loginMethod = 'local';
+          state.user.isAdmin = (email === 'rachelle@mannyelagroup.com') && (acc.isAdmin === true);
+          state.plan = acc.plan || 'free';
+          if (errEl) errEl.style.display = 'none';
+          if (typeof renderAuthBar === 'function') renderAuthBar();
+          if (typeof showNotify === 'function') showNotify('Bienvenue, ' + state.user.name + ' ✦');
+          if (typeof goTo === 'function') goTo(state.user.isAdmin ? 'admin' : 'accueil');
+          return;
+        }
+
+        // 2) Sinon, connexion Supabase (clientes inscrites)
+        var client = window._supabaseClient || window.supabase;
+        if (client && client.auth) {
+          client.auth.signInWithPassword({ email: email, password: pwd }).then(function (res) {
+            if (res.error || !res.data || !res.data.user) {
+              if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
+              if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
+              return;
+            }
+            var u = res.data.user;
+            state.isLoggedIn = true;
+            state.user = state.user || {};
+            state.user.name = (u.user_metadata && u.user_metadata.name) ? u.user_metadata.name : email.split('@')[0];
+            state.user.email = email;
+            state.user.plan = (u.user_metadata && u.user_metadata.plan) ? u.user_metadata.plan : 'plante';
+            state.user.id = u.id;
+            state.user.loginMethod = 'supabase';
+            state.user.isAdmin = (email === 'rachelle@mannyelagroup.com');
+            state.plan = state.user.plan;
+            if (errEl) errEl.style.display = 'none';
+            if (typeof renderAuthBar === 'function') renderAuthBar();
+            if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
+            if (typeof showNotify === 'function') showNotify('Bienvenue, ' + state.user.name + ' ✦');
+            if (typeof goTo === 'function') goTo(state.user.isAdmin ? 'admin' : 'accueil');
+          }).catch(function () {
+            if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
+            if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
+          });
+        } else {
+          if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
+          if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
+        }
+      } catch (e) { console.warn('Mannyela localFirstLogin:', e && e.message); }
+    }
+
+    // Imposer notre fonction comme référence finale (après auth.js)
+    window.doLogin = localFirstLogin;
+    document.addEventListener('DOMContentLoaded', function () { window.doLogin = localFirstLogin; });
   })();
   </script>
 </body>
