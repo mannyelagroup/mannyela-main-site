@@ -1011,54 +1011,6 @@
     postTagsSelected: [],
     postMood: null,
     communityFeed: [
-      {
-        author: 'Amara K.', role: 'Membre · Plan Journal',
-        text: "Ma plante vient de passer à 🌺 épanouie après 6 semaines de rituel régulier ! Je n'y croyais plus trop au début mais ELYA m'a donné un protocole super précis pour ma porosité haute. La méthode LOCO a tout changé pour moi. Merci à toute la communauté pour les encouragements 🙏",
-        likes: 34, comments: 8, liked: false,
-        tag: 'Témoignage', time: 'Il y a 2h'
-      },
-      {
-        author: 'Rachelle', role: 'Fondatrice · Mannyela',
-        text: "✦ Défi du mois lancé ! Cette semaine : documentez votre soin dans le journal et partagez votre avant/après ici. Les 3 entrées les plus complètes gagnent une consultation gratuite avec une de nos expertes. Courage à toutes vos couronnes 👑",
-        likes: 61, comments: 19, liked: false,
-        tag: 'Défi', time: 'Il y a 5h'
-      },
-      {
-        author: 'Nadia W.', role: 'Membre · Plan ELYA Premium',
-        text: "Question pour la communauté : est-ce que vous faites votre bain d'huile avant ou après avoir embrumé ? J'ai demandé à ELYA elle m'a dit avant le shampoing mais ma sœur fait l'inverse... Du coup je suis perdue 😅 Quelqu'un a testé les deux ?",
-        likes: 12, comments: 23, liked: false,
-        tag: 'Question', time: 'Il y a 8h'
-      },
-      {
-        author: 'Yasmine D.', role: 'Experte certifiée · Mannyela',
-        text: "Pour celles qui me demandent souvent comment gérer la casse en hiver : la clé c'est de ne jamais manipuler les cheveux secs. Toujours hydrater d'abord avec un spray aloé vera, attendre 2 minutes, puis démêler avec les doigts avant le peigne. Simple mais vraiment efficace sur les 4B/4C. N'hésitez pas à réserver une séance si vous voulez qu'on travaille votre protocole ensemble 🌿",
-        likes: 47, comments: 11, liked: false,
-        tag: 'Conseil', time: 'Il y a 1j'
-      },
-      {
-        author: 'Priya M.', role: 'Membre · Plan La Plante',
-        text: "Semaine 3 avec Mannyela ! Ma plante est passée de 🥀 à 🌿 en moins d'un mois. Franchement je pensais pas que le journal allait autant m'aider à être régulière mais le fait de voir ma plante grandir ça motive vraiment. Je passe au plan Journal le mois prochain pour avoir ELYA ✨",
-        likes: 28, comments: 6, liked: false,
-        tag: 'Progression', time: 'Il y a 1j'
-      },
-      {
-        author: 'Fatoumata B.', role: 'Membre · Plan Élite',
-        text: "J'ai eu ma séance avec Yasmine hier et elle m'a complètement reformulé mon rituel. J'utilisais trop de protéines pour ma texture (3C porosité basse) et ça créait de la rigidité. Maintenant tout est revu, plus simple, plus efficace. Vraiment la valeur des expertes Mannyela c'est irremplaçable 💛",
-        likes: 52, comments: 14, liked: false,
-        tag: 'Témoignage', time: 'Il y a 2j'
-      },
-      {
-        author: 'Léa T.', role: 'Membre · Plan Journal',
-        text: "Petite question : est-ce que quelqu'un utilise l'huile de sésame pour le scalp ? J'ai lu que c'est bien pour stimuler la pousse mais ELYA me conseille plutôt le ricin. Je fais confiance à ELYA mais curieuse de vos retours réels !",
-        likes: 9, comments: 17, liked: false,
-        tag: 'Question', time: 'Il y a 3j'
-      },
-      {
-        author: 'Rachelle', role: 'Fondatrice · Mannyela',
-        text: "📸 Résultats du défi du mois dernier — vos avant/après sont absolument incroyables. Je suis tellement fière de cette communauté. La masterclass de ce vendredi porte sur la porosité capillaire, inscription dans la section Événements. On se retrouve en live à 19h !",
-        likes: 78, comments: 22, liked: false,
-        tag: 'Annonce', time: 'Il y a 4j'
-      },
     ],  // posts des membres et admins
 
     // ─── Contenu géré par l’admin ─────────────────────────────────
@@ -4849,7 +4801,10 @@
     state.journalFormOpen = false;
     showNotify('Entrée enregistrée 📖 — votre plante se réjouit !');
     state.lastJournalTimestamp = Date.now();
-    if (window._mannyelaCloud) window._mannyelaCloud.saveJournal(state.journalEntries[0]);
+    if (window._mannyelaCloud) {
+      window._mannyelaCloud.saveJournal(state.journalEntries[0]);
+      window._mannyelaCloud.saveFiche(); // met à jour l'analyse ELYA partagée à l'experte
+    }
     switchProfileTab('journal');
   }
 
@@ -5396,6 +5351,41 @@ function buildElyaSystemPrompt() {
       + 'Si tu detectes une incoherence (rituel non suivi, casse elevee), mentionne-le avec tact.\n'
       + 'Tes conseils sont fondes sur la trichologie. Tu n\'es pas medecin: oriente vers un professionnel pour problemes dermatologiques.\n'
       + 'Reponses en francais, concises (3-6 phrases). Si la cliente evoque une experte, propose-lui de reserver. Sa fiche (texture, journal, rituel) est transmise automatiquement a l\'experte lors de la reservation.';
+  }
+
+  // Analyse ELYA "en arrière-plan" : résumé déterministe du journal + conseils,
+  // partagé avec l'experte. Fiable (sans appel API).
+  function buildClientFiche() {
+    var a = state.diagAnswers || {};
+    var entries = state.journalEntries || [];
+    var avgHyd = 0, avgCas = 0, n = 0;
+    entries.forEach(function (e) {
+      if (e.indicators && e.indicators.hyd) { avgHyd += e.indicators.hyd; avgCas += (e.indicators.cas || 0); n++; }
+    });
+    var analyse = [];
+    analyse.push('Profil : ' + (a.texture || a.tex || '?') + ', porosité ' + (a.porosite || a.por || '?') + '. Objectif : ' + (a.objectif || a.obj || 'non renseigné') + '.');
+    if (n > 0) {
+      var h = avgHyd / n, cas = avgCas / n;
+      analyse.push('Journal (' + entries.length + ' entrées) : hydratation ' + h.toFixed(1) + '/5, casse ' + cas.toFixed(1) + '/5.');
+      if (cas >= 3.5) analyse.push('⚠ Casse élevée — recommander masque protéiné mensuel + scellage systématique (méthode LOC), démêlage sur cheveux humides uniquement.');
+      if (h <= 2.5) analyse.push('⚠ Hydratation faible — intensifier l\'hydratation quotidienne (spray aloe/eau florale) avant le scellage.');
+      if (cas < 3.5 && h > 2.5) analyse.push('Indicateurs équilibrés — maintenir la routine actuelle.');
+    } else {
+      analyse.push('Aucune donnée de journal — encourager la cliente à documenter ses soins.');
+    }
+    var last = entries[0];
+    if (last) {
+      var days = Math.floor((Date.now() - (last.timestamp || Date.now())) / 86400000);
+      if (days > 7) analyse.push('⚠ Pas de journal depuis ' + days + ' jours.');
+    }
+    return {
+      texture: a.texture || a.tex || '', porosite: a.porosite || a.por || '',
+      densite: a.densite || a.den || '', objectif: a.objectif || a.obj || '',
+      journal_resume: entries.slice(0, 5).map(function (e) { return { date: e.date, title: e.title, indicators: e.indicators || null, tags: e.tags || [] }; }),
+      nb_journal: entries.length,
+      derniere_entree: last ? { date: last.date, title: last.title, indicators: last.indicators || null } : null,
+      elya_analyse: analyse.join(' ')
+    };
   }
 
   function getElyaFallback(question) {
@@ -8930,6 +8920,21 @@ function buildElyaSystemPrompt() {
       } catch (e) { return { ok: false, reason: (e && e.message) || 'error' }; }
     }
 
+    // ── FICHE CLIENTE + ANALYSE ELYA (partagée avec l'experte) ──────────────
+    async function saveFiche() {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        var f = (typeof buildClientFiche === 'function') ? buildClientFiche() : {};
+        await _client().from('client_fiches').upsert(Object.assign({
+          id: u.id,
+          email: u.email,
+          name: (state.user && state.user.name) || (u.email || '').split('@')[0],
+          plan: (state.user && state.user.plan) || 'plante',
+          updated_at: new Date().toISOString()
+        }, f));
+      } catch (e) { console.warn('Fiche save:', e && e.message); }
+    }
+
     // ── ENREGISTRER LE MEMBRE (pour le tableau de bord admin) ───────────────
     async function registerMember() {
       var u = await _sbUser(); if (!u) return;
@@ -8978,6 +8983,8 @@ function buildElyaSystemPrompt() {
         var pr = await c.from('profiles').select('photo').eq('id', u.id).maybeSingle();
         if (pr && pr.data && pr.data.photo && state.user) state.user.photo = pr.data.photo;
       } catch (e) { console.warn('Cloud profile load:', e && e.message); }
+      // Analyse ELYA en arrière-plan : met à jour la fiche partagée avec l'experte.
+      saveFiche();
       _refresh();
     }
 
@@ -9007,7 +9014,7 @@ function buildElyaSystemPrompt() {
     }
 
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -9026,7 +9033,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v9 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v11 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
