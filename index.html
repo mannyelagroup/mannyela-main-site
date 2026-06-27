@@ -7568,11 +7568,27 @@ function buildElyaSystemPrompt() {
     renderAdminPanel();
   }
 
-  function adminDeletePost(idx) {
+  async function adminDeletePost(idx) {
     if (!confirm('Supprimer ce post définitivement ?')) return;
-    var removed = state.communityFeed.splice(idx, 1)[0];
-    if (removed && removed._cloudId && window._mannyelaCloud) window._mannyelaCloud.deletePost(removed._cloudId);
-    showNotify('Post supprimé');
+    var post = state.communityFeed[idx];
+    if (!post) return;
+    // Post de démonstration (non enregistré en base) : retrait local uniquement.
+    if (!post._cloudId) {
+      state.communityFeed.splice(idx, 1);
+      showNotify('Post retiré (post de démonstration — non enregistré en base)');
+      renderAdminPanel();
+      return;
+    }
+    var res = window._mannyelaCloud ? await window._mannyelaCloud.deletePost(post._cloudId) : { ok: false, reason: 'no-cloud' };
+    if (res && res.ok) {
+      var i2 = state.communityFeed.indexOf(post);
+      if (i2 > -1) state.communityFeed.splice(i2, 1);
+      showNotify('Post supprimé ✦');
+    } else if (res && res.reason === 'no-session') {
+      showNotify('Pour modérer, connectez-vous avec le compte admin Supabase (le mot de passe intégré ne suffit pas).');
+    } else {
+      showNotify('Suppression impossible — vérifiez la règle SQL « posts admin delete » dans Supabase.');
+    }
     renderAdminPanel();
   }
 
@@ -8902,10 +8918,16 @@ function buildElyaSystemPrompt() {
     }
 
     // Suppression d'un post (modération admin) — nécessite une session admin.
+    // Renvoie { ok, reason } pour un retour fiable (RLS ne lève pas d'erreur).
     async function deletePost(cloudId) {
-      if (!cloudId) return;
-      try { await _client().from('community_posts').delete().eq('id', cloudId); }
-      catch (e) { console.warn('Cloud post delete:', e && e.message); }
+      if (!cloudId) return { ok: false, reason: 'no-id' };
+      var u = await _sbUser();
+      if (!u) return { ok: false, reason: 'no-session' };
+      try {
+        var res = await _client().from('community_posts').delete().eq('id', cloudId).select();
+        if (res.error) return { ok: false, reason: res.error.message };
+        return { ok: !!(res.data && res.data.length > 0), reason: (res.data && res.data.length > 0) ? '' : 'blocked' };
+      } catch (e) { return { ok: false, reason: (e && e.message) || 'error' }; }
     }
 
     // ── ENREGISTRER LE MEMBRE (pour le tableau de bord admin) ───────────────
@@ -9004,7 +9026,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v8 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v9 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
