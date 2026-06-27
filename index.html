@@ -7252,8 +7252,31 @@ function buildElyaSystemPrompt() {
     }));
   }
 
+  // Fusionne les comptes intégrés (fondateur) avec les vrais membres Supabase.
+  function _getAdminMembers() {
+    var builtins = Object.entries(typeof CLIENT_ACCOUNTS !== 'undefined' ? CLIENT_ACCOUNTS : {}).map(function (pair) {
+      var email = pair[0], acc = pair[1];
+      return { email: email, name: acc.name || email.split('@')[0], plan: acc.plan || 'plante', isAdmin: !!acc.isAdmin };
+    });
+    var cloud = (window._adminMembersList || []).map(function (m) {
+      return { email: m.email, name: m.name || (m.email || '').split('@')[0], plan: m.plan || 'plante', isAdmin: (m.email === 'rachelle@mannyelagroup.com'), created_at: m.created_at };
+    });
+    var byEmail = {};
+    builtins.concat(cloud).forEach(function (m) {
+      if (!m.email) return;
+      var k = m.email.toLowerCase();
+      byEmail[k] = Object.assign(byEmail[k] || {}, m);
+    });
+    return Object.keys(byEmail).map(function (k) { return byEmail[k]; });
+  }
+
   function renderAdminPanel() {
     if (!state.user.isAdmin) { goTo('landing'); return; }
+    // Charger la vraie liste des membres depuis Supabase (une fois)
+    if (!window._adminMembersLoaded && window._mannyelaCloud && window._mannyelaCloud.loadMembers) {
+      window._adminMembersLoaded = true;
+      window._mannyelaCloud.loadMembers();
+    }
     const adminTab = window._adminCurrentTab || 'dashboard';
 
     render(`
@@ -7288,12 +7311,12 @@ function buildElyaSystemPrompt() {
   }
 
   function renderAdminDashboard() {
-    const totalMembers = Object.keys(CLIENT_ACCOUNTS).length;
-    const accounts = Object.values(CLIENT_ACCOUNTS);
-    const premiumMembers = accounts.filter(a => a.plan !== 'free').length;
+    const accounts = (typeof _getAdminMembers === 'function') ? _getAdminMembers() : Object.values(CLIENT_ACCOUNTS);
+    const totalMembers = accounts.length;
     const journalMembers = accounts.filter(a => a.plan === 'journal').length;
     const premiumPlan = accounts.filter(a => a.plan === 'premium').length;
     const eliteMembers = accounts.filter(a => a.plan === 'elite').length;
+    const premiumMembers = journalMembers + premiumPlan + eliteMembers;
     const PRICES = { plante: 4.90, journal: 7.90, premium: 14.90, elite: 29.90 };
     const mrr = journalMembers * PRICES.journal + premiumPlan * PRICES.premium + eliteMembers * PRICES.elite;
     const announcements = window._adminAnnouncements || [];
@@ -7418,12 +7441,12 @@ function buildElyaSystemPrompt() {
   }
 
   function renderAdminMembres() {
-    const members = Object.entries(CLIENT_ACCOUNTS);
+    const members = _getAdminMembers();
     return `
       <div>
-        <p style="font-size:10px;color:rgba(245,245,220,0.3);margin-bottom:1.5rem;">${members.length} compte${members.length>1?'s':''} enregistré${members.length>1?'s':''}</p>
+        <p style="font-size:10px;color:rgba(245,245,220,0.3);margin-bottom:1.5rem;">${members.length} membre${members.length>1?'s':''} enregistré${members.length>1?'s':''}</p>
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
-          ${members.map(([email, acc]) => `
+          ${members.map((acc) => { const email = acc.email; return `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border:1px solid rgba(245,245,220,0.07);background:rgba(255,255,255,0.01);">
             <div style="display:flex;align-items:center;gap:1rem;">
               <div style="width:36px;height:36px;border-radius:50%;border:1px solid ${acc.isAdmin?'rgba(196,149,106,0.4)':'rgba(245,245,220,0.12)'};display:flex;align-items:center;justify-content:center;background:rgba(196,149,106,0.04);">
@@ -7438,11 +7461,11 @@ function buildElyaSystemPrompt() {
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:0.75rem;">
-              <span style="font-size:8px;font-family:'Cinzel',serif;padding:3px 10px;border:1px solid ${acc.plan==='free'?'rgba(245,245,220,0.12)':acc.plan==='elite'?'rgba(220,180,120,0.4)':'rgba(196,149,106,0.3)'};color:${acc.plan==='free'?'rgba(245,245,220,0.35)':acc.plan==='elite'?'rgba(220,180,120,0.9)':'rgba(196,149,106,0.7)'};">
-                ${acc.plan==='free'?'Gratuit':acc.plan==='journal'?'Le Journal':acc.plan==='premium'?'ELYA Premium':'Élite'}
+              <span style="font-size:8px;font-family:'Cinzel',serif;padding:3px 10px;border:1px solid ${_isFreePlan(acc.plan)?'rgba(245,245,220,0.12)':acc.plan==='elite'?'rgba(220,180,120,0.4)':'rgba(196,149,106,0.3)'};color:${_isFreePlan(acc.plan)?'rgba(245,245,220,0.35)':acc.plan==='elite'?'rgba(220,180,120,0.9)':'rgba(196,149,106,0.7)'};">
+                ${_isFreePlan(acc.plan)?'Gratuit':acc.plan==='journal'?'Le Journal':acc.plan==='premium'?'ELYA Premium':'Élite'}
               </span>
             </div>
-          </div>`).join('')}
+          </div>`; }).join('')}
         </div>
 
         <!-- Ajouter un admin -->
@@ -7510,6 +7533,7 @@ function buildElyaSystemPrompt() {
       time: "À l’instant", tags: ['Annonce'], mood: '✦', photos: [],
       isPinned: true, isAdmin: true
     });
+    if (window._mannyelaCloud) window._mannyelaCloud.savePost(state.communityFeed[0]);
     showNotify('Message envoyé à ' + count + ' membre' + (count>1?'s':'') + ' ✦');
     renderAdminPanel();
   }
@@ -7533,6 +7557,7 @@ function buildElyaSystemPrompt() {
       time: "À l’instant", tags: ['Épinglé'], mood: '📌', photos: [],
       isPinned: true, isAdmin: true
     });
+    if (window._mannyelaCloud) window._mannyelaCloud.savePost(state.communityFeed[0]);
     showNotify('Post épinglé ✦');
     renderAdminPanel();
   }
@@ -7545,7 +7570,8 @@ function buildElyaSystemPrompt() {
 
   function adminDeletePost(idx) {
     if (!confirm('Supprimer ce post définitivement ?')) return;
-    state.communityFeed.splice(idx, 1);
+    var removed = state.communityFeed.splice(idx, 1)[0];
+    if (removed && removed._cloudId && window._mannyelaCloud) window._mannyelaCloud.deletePost(removed._cloudId);
     showNotify('Post supprimé');
     renderAdminPanel();
   }
@@ -8875,9 +8901,30 @@ function buildElyaSystemPrompt() {
       } catch (e) { console.warn('Cloud post save:', e && e.message); }
     }
 
+    // Suppression d'un post (modération admin) — nécessite une session admin.
+    async function deletePost(cloudId) {
+      if (!cloudId) return;
+      try { await _client().from('community_posts').delete().eq('id', cloudId); }
+      catch (e) { console.warn('Cloud post delete:', e && e.message); }
+    }
+
+    // ── ENREGISTRER LE MEMBRE (pour le tableau de bord admin) ───────────────
+    async function registerMember() {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        await _client().from('members').upsert({
+          id: u.id,
+          email: u.email,
+          name: (state.user && state.user.name) || (u.email || '').split('@')[0],
+          plan: (state.user && state.user.plan) || 'plante'
+        });
+      } catch (e) { console.warn('Member register:', e && e.message); }
+    }
+
     // ── CHARGEMENT À LA CONNEXION ───────────────────────────────────────────
     async function loadAll() {
       var u = await _sbUser();
+      if (u) registerMember();
       if (!u) {
         // Comptes locaux : recharger depuis le cache navigateur
         try {
@@ -8901,7 +8948,7 @@ function buildElyaSystemPrompt() {
         var cp = await c.from('community_posts').select('post,created_at')
                         .order('created_at', { ascending: false }).limit(100);
         if (cp && cp.data) {
-          var cloudPosts = cp.data.map(function (r) { return r.post; });
+          var cloudPosts = cp.data.map(function (r) { var p = Object.assign({}, r.post); p._cloudId = r.id; return p; });
           state.communityFeed = cloudPosts.concat(_seedFeed());
         }
       } catch (e) { console.warn('Cloud posts load:', e && e.message); }
@@ -8921,8 +8968,24 @@ function buildElyaSystemPrompt() {
       } catch (e) {}
     }
 
+    // ── LISTE DES MEMBRES (tableau de bord admin) ───────────────────────────
+    async function loadMembers() {
+      var c = _client();
+      if (!c) return;
+      try {
+        var res = await c.from('members').select('id,email,name,plan,created_at').order('created_at', { ascending: false });
+        if (res && res.data) {
+          window._adminMembersList = res.data;
+          // Re-render du panneau admin s'il est affiché
+          if (typeof state !== 'undefined' && state.step === 'admin' && typeof renderAdminPanel === 'function') {
+            renderAdminPanel();
+          }
+        }
+      } catch (e) { console.warn('Members load:', e && e.message); }
+    }
+
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, loadAll: loadAll };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -8941,7 +9004,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v6 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v8 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
@@ -8961,34 +9024,34 @@ function buildElyaSystemPrompt() {
         if (!email || !pwd) { if (typeof showNotify === 'function') showNotify('Email et mot de passe requis'); return; }
 
         var errEl = document.getElementById('login-error');
-
-        // 1) Comptes intégrés (CLIENT_ACCOUNTS) — inclut le compte admin
+        var isAdminEmail = (email === 'rachelle@mannyelagroup.com');
         var acc = (typeof CLIENT_ACCOUNTS !== 'undefined') ? CLIENT_ACCOUNTS[email] : null;
-        if (acc && acc.pwd === pwd) {
+
+        function _fail() {
+          if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
+          if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
+        }
+
+        function _loginLocal(a) {
           state.isLoggedIn = true;
           state.user = state.user || {};
-          state.user.name = acc.name || email.split('@')[0];
+          state.user.name = a.name || email.split('@')[0];
           state.user.email = email;
-          state.user.plan = acc.plan || 'free';
+          state.user.plan = a.plan || 'free';
           state.user.loginMethod = 'local';
-          state.user.isAdmin = (email === 'rachelle@mannyelagroup.com') && (acc.isAdmin === true);
-          state.plan = acc.plan || 'free';
+          state.user.isAdmin = isAdminEmail && (a.isAdmin === true);
+          state.plan = a.plan || 'free';
           if (errEl) errEl.style.display = 'none';
           if (typeof renderAuthBar === 'function') renderAuthBar();
           if (typeof showNotify === 'function') showNotify('Bienvenue, ' + state.user.name + ' ✦');
           if (typeof goTo === 'function') goTo(state.user.isAdmin ? 'admin' : 'accueil');
-          return;
         }
 
-        // 2) Sinon, connexion Supabase (clientes inscrites)
-        var client = window._supabaseClient || window.supabase;
-        if (client && client.auth) {
+        function _loginSupabase(onFail) {
+          var client = window._supabaseClient || window.supabase;
+          if (!client || !client.auth) { onFail(); return; }
           client.auth.signInWithPassword({ email: email, password: pwd }).then(function (res) {
-            if (res.error || !res.data || !res.data.user) {
-              if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
-              if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
-              return;
-            }
+            if (res.error || !res.data || !res.data.user) { onFail(); return; }
             var u = res.data.user;
             state.isLoggedIn = true;
             state.user = state.user || {};
@@ -8997,21 +9060,29 @@ function buildElyaSystemPrompt() {
             state.user.plan = (u.user_metadata && u.user_metadata.plan) ? u.user_metadata.plan : 'plante';
             state.user.id = u.id;
             state.user.loginMethod = 'supabase';
-            state.user.isAdmin = (email === 'rachelle@mannyelagroup.com');
+            state.user.isAdmin = isAdminEmail;
+            if (isAdminEmail) state.user.plan = 'elite';
             state.plan = state.user.plan;
             if (errEl) errEl.style.display = 'none';
             if (typeof renderAuthBar === 'function') renderAuthBar();
             if (window._mannyelaCloud) window._mannyelaCloud.loadAll();
             if (typeof showNotify === 'function') showNotify('Bienvenue, ' + state.user.name + ' ✦');
             if (typeof goTo === 'function') goTo(state.user.isAdmin ? 'admin' : 'accueil');
-          }).catch(function () {
-            if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
-            if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
-          });
-        } else {
-          if (errEl) { errEl.textContent = 'Email ou mot de passe incorrect'; errEl.style.display = 'block'; }
-          if (typeof showNotify === 'function') showNotify('Email ou mot de passe incorrect');
+          }).catch(function () { onFail(); });
         }
+
+        // ADMIN : Supabase d'abord (pour les droits d'écriture en base),
+        // repli sur le mot de passe intégré si le compte Supabase n'existe pas encore.
+        if (isAdminEmail) {
+          _loginSupabase(function () {
+            if (acc && acc.pwd === pwd) { _loginLocal(acc); } else { _fail(); }
+          });
+          return;
+        }
+
+        // MEMBRES : compte intégré d'abord, sinon Supabase.
+        if (acc && acc.pwd === pwd) { _loginLocal(acc); return; }
+        _loginSupabase(_fail);
       } catch (e) { console.warn('Mannyela localFirstLogin:', e && e.message); }
     }
 
