@@ -879,7 +879,7 @@
       </button>
       <button 
 
-      <a href="mannyela_experte_v1.9.html" target="_blank" style="display:inline-flex;align-items:center;gap:0.4rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.4);text-decoration:none;padding:0.4rem 0.75rem;border:1px solid rgba(196,149,106,0.15);transition:all 0.2s;" onmouseover="this.style.color='rgba(196,149,106,0.8)';this.style.borderColor='rgba(196,149,106,0.4)'" onmouseout="this.style.color='rgba(196,149,106,0.4)';this.style.borderColor='rgba(196,149,106,0.15)'">✦ Espace Experte</a>
+      <a href="http://experts.mannyelagroup.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:0.4rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.4);text-decoration:none;padding:0.4rem 0.75rem;border:1px solid rgba(196,149,106,0.15);transition:all 0.2s;" onmouseover="this.style.color='rgba(196,149,106,0.8)';this.style.borderColor='rgba(196,149,106,0.4)'" onmouseout="this.style.color='rgba(196,149,106,0.4)';this.style.borderColor='rgba(196,149,106,0.15)'">✦ Espace Experte</a>
     </nav>
   
 </header>
@@ -2369,8 +2369,10 @@
   }
 
   function submitPost() {
-    const txt = document.getElementById('new-post-text')?.value?.trim();
-    if (!txt && state.postPhotos.length === 0) { showNotify('Écrivez quelque chose ou ajoutez une photo'); return; }
+    // Le composer du fil utilise l'id "post-input" ; l'ancien en utilisait "new-post-text".
+    const _postBox = document.getElementById('post-input') || document.getElementById('new-post-text');
+    const txt = _postBox?.value?.trim();
+    if (!txt && (state.postPhotos||[]).length === 0) { showNotify('Écrivez quelque chose ou ajoutez une photo'); return; }
     const now = new Date();
     const time = `Aujourd’hui à ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     state.communityFeed.unshift({
@@ -3267,7 +3269,7 @@
           <h2 class="font-cinzel text-2xl text-accent/80">${state.user.name}</h2>
           <!-- BADGE PLAN PROFIL -->
           <div style="display:flex;justify-content:center;margin-top:0.75rem;">
-            ${state.plan === 'free' ? `
+            ${(_isFreePlan()) ? `
               <span class="badge-plan badge-free">
                 <span class="badge-icon">
                   <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
@@ -3297,7 +3299,7 @@
                 </span>
                 ELYA Premium · −15%
               </span>
-            ` : `
+            ` : state.plan === 'elite' ? `
               <span class="badge-plan badge-couronne" style="border-color:rgba(220,180,120,0.6);color:rgba(220,180,120,1);">
                 <span class="badge-icon">
                   <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
@@ -3309,6 +3311,16 @@
                   </svg>
                 </span>
                 Élite · −15%
+              </span>
+            ` : `
+              <span class="badge-plan badge-free">
+                <span class="badge-icon">
+                  <svg viewBox="0 0 14 14" fill="none" width="14" height="14">
+                    <circle cx="7" cy="7" r="5.5" stroke="rgba(245,245,220,0.25)" stroke-width="0.8"/>
+                    <circle cx="7" cy="7" r="2" fill="rgba(245,245,220,0.2)"/>
+                  </svg>
+                </span>
+                Membre Gratuite
               </span>
             `}
           </div>
@@ -3343,7 +3355,7 @@
                   + '<p style="font-size:8px;color:rgba(245,245,220,0.3);font-style:italic;margin-bottom:8px;">' + nextMsg + '</p>';
               })()}
               <p style="font-size:9px;color:rgba(245,245,220,0.2);margin-top:4px;font-family:'Cinzel',serif;letter-spacing:0.15em;">
-                ${state.plan==='free'?'Découvrir les offres →':`${state.subscriptionMonths} mois · voir mon plan →`}
+                ${_isFreePlan()?'Découvrir les offres →':`${state.subscriptionMonths} mois · voir mon plan →`}
               </p>
             </div>
           </div>
@@ -3373,7 +3385,7 @@
         </div>
 
         <!-- GAIN CUMULÉ BANNER (visible si abonnée) -->
-        ${state.plan !== 'free' ? `
+        ${!_isFreePlan() ? `
         <div onclick="goTo('abonnements')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1.25rem;background:rgba(196,149,106,0.04);border:1px solid rgba(196,149,106,0.15);margin-bottom:1.5rem;transition:border-color 0.3s;"
              onmouseover="this.style.borderColor='rgba(196,149,106,0.35)'" onmouseout="this.style.borderColor='rgba(196,149,106,0.15)'">
           <div style="display:flex;align-items:center;gap:1rem;">
@@ -3433,7 +3445,7 @@
                 <p class="font-cinzel text-[8px] tracking-[0.4em] text-accent/30 uppercase mb-1">Ma Plante Capillaire</p>
 
                 ${(()=>{
-                  if (state.plan === 'free') return '<div style="padding:1.5rem 0;text-align:center;"><p style="font-size:9px;font-family:Cinzel,serif;letter-spacing:0.2em;color:rgba(245,245,220,0.25);">🌱 Disponible avec un abonnement</p><button onclick=\"goTo(\'abonnements\')\" style=\"font-family:Cinzel,serif;font-size:7px;padding:4px 14px;border:1px solid rgba(196,149,106,0.3);color:rgba(196,149,106,0.6);background:transparent;cursor:pointer;margin-top:0.6rem;letter-spacing:0.15em;text-transform:uppercase;\">❆ Voir les offres</button></div>';
+                  if (_isFreePlan()) return '<div style="padding:1.5rem 0;text-align:center;"><p style="font-size:9px;font-family:Cinzel,serif;letter-spacing:0.2em;color:rgba(245,245,220,0.25);">🌱 Disponible avec un abonnement</p><button onclick=\"goTo(\'abonnements\')\" style=\"font-family:Cinzel,serif;font-size:7px;padding:4px 14px;border:1px solid rgba(196,149,106,0.3);color:rgba(196,149,106,0.6);background:transparent;cursor:pointer;margin-top:0.6rem;letter-spacing:0.15em;text-transform:uppercase;\">❆ Voir les offres</button></div>';
                   // ── Calcul fraîcheur ──────────────────────────────
                   const lastEntry = state.journalEntries[0];
                   const lastTs = state.lastJournalTimestamp
@@ -4103,7 +4115,7 @@
                 </div>
                 <div class="flex gap-2 items-center">
                   <label style="font-size:9px;color:rgba(245,245,220,0.3);cursor:pointer;font-family:'Cinzel',serif;letter-spacing:0.1em;" onclick="document.getElementById('post-photo').click()">📷 Photo</label>
-                  <input type="file" id="post-photo" accept="image/*" style="display:none" onchange="handlePostPhoto(event)"/>
+                  <input type="file" id="post-photo" accept="image/*" multiple style="display:none" onchange="handlePostPhotos(this)"/>
                   ${state.postPhotos?.length ? `<span style="font-size:9px;color:rgba(196,149,106,0.6);">📷 ${state.postPhotos.length}</span>` : ''}
                   <button class="btn-secondary" onclick="submitPost()" style="font-size:0.55rem;">Publier</button>
                 </div>
@@ -4408,10 +4420,10 @@
                 <p class="font-cinzel" style="font-size:9px;letter-spacing:0.4em;color:rgba(245,245,220,0.3);text-transform:uppercase;">Agent IA Capillaire</p>
                 <h3 class="font-cinzel" style="font-size:1.2rem;color:rgba(245,245,220,0.8);margin-top:0.25rem;">Elya</h3>
                 <div style="display:flex;justify-content:center;align-items:center;gap:0.5rem;margin-top:0.6rem;">
-                  ${state.plan==='free' ? `<span class="badge-plan badge-free"><span class="badge-icon"><svg viewBox="0 0 14 14" fill="none" width="14" height="14"><circle cx="7" cy="7" r="5.5" stroke="rgba(245,245,220,0.25)" stroke-width="0.8"/><circle cx="7" cy="7" r="2" fill="rgba(245,245,220,0.2)"/></svg></span>Gratuite</span><span style="font-size:9px;color:${state.elyaMsgCount>=4?'#e05050':'rgba(245,245,220,0.25)'};">${5-state.elyaMsgCount} msg offerts</span>` : ['journal','premium','elite'].includes(state.plan) ? `<span class="badge-plan badge-essentielle">${PLANS[state.plan]?.label||''}</span><span style="font-size:9px;color:rgba(196,149,106,0.5);">Illimité</span>` : `<span style="font-size:9px;color:rgba(245,245,220,0.3);">Plan inconnu</span>`}
+                  ${_isFreePlan() ? `<span class="badge-plan badge-free"><span class="badge-icon"><svg viewBox="0 0 14 14" fill="none" width="14" height="14"><circle cx="7" cy="7" r="5.5" stroke="rgba(245,245,220,0.25)" stroke-width="0.8"/><circle cx="7" cy="7" r="2" fill="rgba(245,245,220,0.2)"/></svg></span>Gratuite</span><span style="font-size:9px;color:${state.elyaMsgCount>=4?'#e05050':'rgba(245,245,220,0.25)'};">${5-state.elyaMsgCount} msg offerts</span>` : ['journal','premium','elite'].includes(state.plan) ? `<span class="badge-plan badge-essentielle">${PLANS[state.plan]?.label||''}</span><span style="font-size:9px;color:rgba(196,149,106,0.5);">Illimité</span>` : `<span style="font-size:9px;color:rgba(245,245,220,0.3);">Plan inconnu</span>`}
                 </div>
               </div>
-              ${state.plan==='free'&&state.elyaMsgCount>=5 ? `
+              ${_isFreePlan()&&state.elyaMsgCount>=5 ? `
               <div style="text-align:center;padding:1.5rem;border:1px solid rgba(196,149,106,0.2);background:rgba(196,149,106,0.03);">
                 <p class="font-cinzel" style="font-size:0.9rem;color:rgba(245,245,220,0.8);margin-bottom:0.5rem;">5 messages de la semaine utilisés</p>
                 <p style="font-size:11px;color:rgba(245,245,220,0.3);margin-bottom:1.25rem;">Elya reprend demain — ou passez à une offre.</p>
@@ -4425,7 +4437,7 @@
                 ${state.elyaMessages.map(m => `<div style="display:flex;flex-direction:column;align-items:${m.sender==='user'?'flex-end':'flex-start'};"><div class="chat-bubble ${m.sender==='elya'?'expert':'user'}"><p>${m.text}</p><p style="font-size:9px;opacity:0.3;margin-top:3px;">${m.time}</p></div></div>`).join('')}
                 ${state.elyaTyping ? `<div class="chat-bubble expert" style="width:fit-content;padding:0.5rem 1rem;"><span style="display:flex;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:rgba(245,245,220,0.4);animation:pulse 1s infinite;"></span><span style="width:5px;height:5px;border-radius:50%;background:rgba(245,245,220,0.4);animation:pulse 1s 0.2s infinite;"></span><span style="width:5px;height:5px;border-radius:50%;background:rgba(245,245,220,0.4);animation:pulse 1s 0.4s infinite;"></span></span></div>` : ''}
               </div>
-              ${state.plan === 'free' && (state.elyaMsgCount||0) >= 5 ? `
+              ${_isFreePlan() && (state.elyaMsgCount||0) >= 5 ? `
                 <!-- PAYWALL FREE — limite 5 messages atteinte -->
                 <div style="text-align:center;padding:1.5rem;border:1px solid rgba(196,149,106,0.2);background:rgba(196,149,106,0.04);">
                   <p style="font-size:1.5rem;margin-bottom:0.5rem;">✦</p>
@@ -4434,7 +4446,7 @@
                   <button onclick="goTo('register')" class="btn-mannyela" style="font-size:9px;">Débloquer ELYA illimitée ✦</button>
                 </div>
               ` : `
-                ${state.plan === 'free' ? `
+                ${_isFreePlan() ? `
                   <div style="display:flex;justify-content:flex-end;margin-bottom:0.4rem;">
                     <p style="font-size:8px;font-family:'Cinzel',serif;letter-spacing:0.1em;color:${(state.elyaMsgCount||0) >= 4 ? 'rgba(220,80,80,0.7)' : 'rgba(245,245,220,0.25)'};">
                       ${state.elyaMsgCount||0} / 5 messages offerts
@@ -4806,7 +4818,7 @@
   }
 
   function saveJournalEntry() {
-    if (state.plan === 'free' && state.journalEntries.length >= 5) {
+    if (_isFreePlan() && state.journalEntries.length >= 5) {
       showNotify('Limite de 5 entrées pour le profil gratuit ✦');
       setTimeout(() => goTo('abonnements'), 1800);
       return;
@@ -5108,7 +5120,7 @@
         <div style="margin-top:3rem;text-align:center;padding:2.5rem;border:1px solid rgba(245,245,220,0.06);">
           <p class="font-cinzel text-[9px] tracking-[0.4em] text-accent/25 uppercase mb-3">Rejoindre le réseau</p>
           <p style="font-size:12px;color:rgba(245,245,220,0.35);line-height:1.8;margin-bottom:1.5rem;">Vous êtes professionnelle capillaire ?<br>Réseau d'élite · 208 places.</p>
-          <button onclick="window.open('mannyela_experte_v1.9.html','_blank')" class="btn-secondary" style="font-size:0.6rem;">Candidater →</button>
+          <button onclick="window.open('http://experts.mannyelagroup.com','_blank','noopener')" class="btn-secondary" style="font-size:0.6rem;">Candidater →</button>
         </div>
       </div>
     `);
@@ -5744,6 +5756,13 @@ function buildElyaSystemPrompt() {
     return plan ? plan.discount : 0;
   }
 
+  // Le palier gratuit s'appelle tantôt 'free', tantôt 'plante' selon les comptes.
+  // Cette fonction les considère identiques (gratuit = limites appliquées).
+  function _isFreePlan(p) {
+    p = (p === undefined ? state.plan : p);
+    return !p || p === 'free' || p === 'plante';
+  }
+
   function getCurrentPlanPrice() {
     const plan = PLANS[state.plan];
     if (!plan) return 0;
@@ -5906,7 +5925,7 @@ function buildElyaSystemPrompt() {
           </div>
         </div>
 
-        ${state.plan !== 'free' && currentPlan ? `
+        ${!_isFreePlan() && currentPlan ? `
         <!-- VOTRE ABONNEMENT ACTUEL -->
         <div class="glass-box border border-accent/15 p-8 mb-10" style="background:rgba(196,149,106,0.03);">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
@@ -6104,7 +6123,7 @@ function buildElyaSystemPrompt() {
                          color:${plan.color};background:transparent;cursor:pointer;transition:all 0.3s;"
                   onmouseover="this.style.background='rgba(196,149,106,0.08)'"
                   onmouseout="this.style.background='transparent'">
-                  ${state.plan === 'free' ? 'Activer' : 'Changer'} →
+                  ${_isFreePlan() ? 'Activer' : 'Changer'} →
                 </button>
               `}
             </div>`;
@@ -6148,7 +6167,7 @@ function buildElyaSystemPrompt() {
 
   function sendElya(text) {
     // Limite plan gratuit : 5 messages TOTAL
-    if (state.plan === 'free') {
+    if (_isFreePlan()) {
       if ((state.elyaMsgCount || 0) >= 5) {
         showElyaPaywall();
         return;
@@ -8600,7 +8619,7 @@ function buildElyaSystemPrompt() {
 
   <!-- Lien experte -->
   <div style="padding:1rem 1.5rem 0;">
-    <a href="mannyela_experte_v1.9.html" target="_blank"
+    <a href="http://experts.mannyelagroup.com" target="_blank" rel="noopener"
       style="display:flex;align-items:center;gap:0.5rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(196,149,106,0.45);text-decoration:none;padding:0.75rem 1rem;border:1px solid rgba(196,149,106,0.15);">
       ✦ Espace Experte
     </a>
@@ -8922,7 +8941,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v2 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v6 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
