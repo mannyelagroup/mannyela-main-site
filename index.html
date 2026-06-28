@@ -2350,6 +2350,44 @@
     if (modal && img) { img.src = src; modal.style.display = 'flex'; }
   }
 
+  // Une cliente supprime SA propre publication (RGPD — droit à l'effacement).
+  async function clientDeletePost(cloudId) {
+    if (!confirm('Supprimer votre publication ?')) return;
+    var res = window._mannyelaCloud ? await window._mannyelaCloud.deletePost(cloudId) : { ok: false };
+    if (res && res.ok) {
+      var i = (state.communityFeed || []).findIndex(function (p) { return p._cloudId === cloudId; });
+      if (i > -1) state.communityFeed.splice(i, 1);
+      showNotify('Publication supprimée');
+    } else if (res && res.reason === 'no-session') {
+      showNotify('Reconnectez-vous pour supprimer votre publication.');
+    } else {
+      showNotify('Suppression impossible — réessayez.');
+    }
+    switchProfileTab('communaute');
+  }
+
+  // La cliente modifie son nom (affiché sous la photo de profil).
+  async function editClientName() {
+    var current = (state.user && state.user.name) || '';
+    var nv = window.prompt('Votre nom :', current);
+    if (nv === null) return;
+    nv = nv.trim();
+    if (!nv) { showNotify('Le nom ne peut pas être vide'); return; }
+    state.user.name = nv;
+    // Persistance cloud
+    try {
+      var c = window._supabaseClient || window.supabase;
+      if (c && c.auth && c.auth.updateUser) { c.auth.updateUser({ data: { name: nv } }); }
+    } catch (e) {}
+    if (window._mannyelaCloud) {
+      if (window._mannyelaCloud.registerMember) window._mannyelaCloud.registerMember();
+      if (window._mannyelaCloud.saveFiche) window._mannyelaCloud.saveFiche();
+    }
+    if (typeof renderAuthBar === 'function') renderAuthBar();
+    showNotify('Nom mis à jour ✦');
+    renderProfile();
+  }
+
   // ═══════════════════════════════════════════
   // VIDÉOTHÈQUE
   // ═══════════════════════════════════════════
@@ -3218,7 +3256,7 @@
             </div>
           </div>
           <input type="file" id="profile-photo-input" accept="image/*" style="display:none;" onchange="updateProfilePhoto(this)">
-          <h2 class="font-cinzel text-2xl text-accent/80">${state.user.name}</h2>
+          <h2 class="font-cinzel text-2xl text-accent/80" style="display:inline-flex;align-items:center;gap:0.5rem;justify-content:center;">${state.user.name}<button onclick="editClientName()" title="Modifier mon nom" style="background:transparent;border:none;cursor:pointer;color:rgba(196,149,106,0.55);font-size:12px;padding:2px;">✎</button></h2>
           <!-- BADGE PLAN PROFIL -->
           <div style="display:flex;justify-content:center;margin-top:0.75rem;">
             ${(_isFreePlan()) ? `
@@ -4085,7 +4123,8 @@
                 likes: p.likes || 0,
                 tags: p.tags || [],
                 comments: p.comments || 0,
-                isPinned: p.isPinned || false
+                isPinned: p.isPinned || false,
+                _cloudId: p._cloudId || null
               }))].filter(p => state.feedFilter === 'Tout' || (p.tags||[]).includes(state.feedFilter)).map(post => `
                 <div class="glass-box p-5 border border-accent/8">
                   <div class="flex justify-between items-start mb-3">
@@ -4113,6 +4152,7 @@
                     <button style="font-size:10px;color:rgba(245,245,220,0.25);background:transparent;border:none;cursor:pointer;font-family:'Cinzel',serif;">
                       ✦ ${post.comments} réponses
                     </button>
+                    ${(post._cloudId && state.user && post.author === state.user.name) ? `<button onclick="clientDeletePost(${post._cloudId})" style="font-size:10px;color:rgba(200,80,80,0.55);background:transparent;border:none;cursor:pointer;font-family:'Cinzel',serif;margin-left:auto;">Supprimer</button>` : ''}
                   </div>
                 </div>
               `).join('')}
@@ -4406,7 +4446,7 @@
                   </div>
                 ` : ''}
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
-                  ${ ['Comment sceller mon hydratation ?','Ma rituel du soir','Pourquoi mes cheveux cassent ?','Quel produit pour ma porosité ?'].map(s => `<button onclick="sendElya('${s}')" style="font-size:9px;font-family:'Cinzel',serif;padding:4px 10px;border:1px solid rgba(245,245,220,0.1);color:rgba(245,245,220,0.35);background:transparent;cursor:pointer;" onmouseover="this.style.color='rgba(245,245,220,0.7)'" onmouseout="this.style.color='rgba(245,245,220,0.35)'">${s}</button>`).join('')}
+                  ${ ['Comment sceller mon hydratation ?','Mon rituel du soir','Pourquoi mes cheveux cassent ?','Quel produit pour ma porosité ?'].map(s => `<button onclick="sendElya('${s}')" style="font-size:9px;font-family:'Cinzel',serif;padding:4px 10px;border:1px solid rgba(245,245,220,0.1);color:rgba(245,245,220,0.35);background:transparent;cursor:pointer;" onmouseover="this.style.color='rgba(245,245,220,0.7)'" onmouseout="this.style.color='rgba(245,245,220,0.35)'">${s}</button>`).join('')}
                 </div>
                 <div style="display:flex;gap:0.5rem;">
                   <textarea id="elya-input" class="input-mannyela" placeholder="Posez votre question…" rows="2" style="flex:1;resize:none;min-height:44px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendElyaFromInput();}"></textarea>
@@ -4832,6 +4872,25 @@
         if (i > -1) live[i] = Object.assign({}, live[i], e); else live.push(e);
       });
     } catch(e) {}
+    // Expertes réelles inscrites sur le site experte (depuis le cloud)
+    (window._cloudExperts || []).forEach(function(e) {
+      if (!e.email) return;
+      var norm = {
+        name: e.name || e.nom || (e.email || '').split('@')[0],
+        nom: e.name || e.nom || '', email: e.email,
+        specialite: e.specialite || '', bio: e.bio || '', ville: e.ville || '',
+        niveau: e.niveau || 'Experte', tarif: e.tarif || 0, note: e.note || 5, avis: e.avis || 0,
+        disponible: e.disponible !== false, isRef: !!(e.isRef || e.is_ref), photo: e.photo || e.avatar || null,
+        prestations: Array.isArray(e.prestations) ? e.prestations : [],
+        portfolio: Array.isArray(e.portfolio) ? e.portfolio : [], horaires: e.horaires || {}
+      };
+      var i = live.findIndex(function(x) { return x.email && norm.email && x.email.toLowerCase() === norm.email.toLowerCase(); });
+      if (i > -1) live[i] = Object.assign({}, live[i], norm); else live.push(norm);
+    });
+    // Déclenche le chargement cloud une fois
+    if (!window._expertsLoaded && window._mannyelaCloud && window._mannyelaCloud.loadExperts) {
+      window._expertsLoaded = true; window._mannyelaCloud.loadExperts();
+    }
     return live;
   }
 
@@ -5393,7 +5452,7 @@ function buildElyaSystemPrompt() {
     const p = state.diagAnswers?.porosity || '';
     const t = state.diagAnswers?.texture || '';
     if (q.includes('scell') || q.includes('loc')) return `Le scellage est essentiel${p === 'Forte' ? ' surtout avec votre porosité forte' : ''}. Appliquez une huile végétale sur cheveux humides — karité, baobab ou coco — pour emprisonner l’eau. La méthode LOC (Liquide → huile → Crème) est idéale.`;
-    if (q.includes('porosit')) return p === 'Forte' ? "Avec une porosité forte, l’eau entre facilement mais repart vite. Privilégiez les soins occlusifs et le scellage systématique." : p === 'Faible' ? "Avec une porosité faible, utilisez la chaleur douce lors de vos soins pour les faire mieux pénétrer." : "Votre porosité moyenne est équilibrée. Maintenez une rituel régulière.";
+    if (q.includes('porosit')) return p === 'Forte' ? "Avec une porosité forte, l’eau entre facilement mais repart vite. Privilégiez les soins occlusifs et le scellage systématique." : p === 'Faible' ? "Avec une porosité faible, utilisez la chaleur douce lors de vos soins pour les faire mieux pénétrer." : "Votre porosité moyenne est équilibrée. Maintenez un rituel régulier.";
     if (q.includes('casse') || q.includes('cassent')) return "La casse vient souvent d’un manque d’hydratation ou de manipulations brusques. Démêlez toujours sur cheveux humides, et faites un masque protéiné mensuel.";
     if (q.includes('soir') || q.includes('nuit')) return "Rituel du soir : protégez en tresses lâches, quelques gouttes d’huile sur les pointes, et bonnet satin. Cela réduit la friction nocturne.";
     if (q.includes('produit')) return `Pour votre profil${t ? ' ' + t : ''}, le Spray Hydratant Hibiscus d’Aana Hair est une excellente base quotidienne.`;
@@ -7474,29 +7533,34 @@ function buildElyaSystemPrompt() {
   }
 
   function renderAdminExpertes() {
+    var list = (typeof _getExpertesLive === 'function') ? _getExpertesLive() : (typeof expertes !== 'undefined' ? expertes : []);
     return `
       <div>
-        <p style="font-size:10px;color:rgba(245,245,220,0.3);margin-bottom:1.5rem;">${expertes.length} experte${expertes.length>1?'s':''} · Corrélation avec le sous-domaine experte.mannyela.com</p>
+        <p style="font-size:10px;color:rgba(245,245,220,0.3);margin-bottom:1.5rem;">${list.length} experte${list.length>1?'s':''} · synchronisé avec experts.mannyelagroup.com</p>
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
-          ${expertes.map(e => `
+          ${list.map(e => {
+            var nom = e.name || e.nom || (e.email||'').split('@')[0] || 'Experte';
+            var prestos = Array.isArray(e.prestations) ? e.prestations : [];
+            return `
           <div style="border:1px solid rgba(245,245,220,0.07);padding:1.25rem;background:rgba(255,255,255,0.01);">
             <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.75rem;">
               <div>
-                <p class="font-cinzel" style="font-size:12px;color:rgba(245,245,220,0.85);">${e.name}</p>
-                <p style="font-size:9px;color:rgba(245,245,220,0.4);">${e.role} · ${e.location}</p>
-                <p style="font-size:9px;color:rgba(245,245,220,0.3);margin-top:2px;">${e.specialty}</p>
+                <p class="font-cinzel" style="font-size:12px;color:rgba(245,245,220,0.85);">${nom}</p>
+                <p style="font-size:9px;color:rgba(245,245,220,0.4);">${(e.niveau||'Experte')}${e.ville?(' · '+e.ville):''}</p>
+                <p style="font-size:9px;color:rgba(245,245,220,0.3);margin-top:2px;">${e.specialite||''}</p>
+                <p style="font-size:9px;color:rgba(245,245,220,0.25);margin-top:2px;">${e.email||''}</p>
               </div>
               <div style="text-align:right;">
-                ${e.isRef ? '<span style="font-size:7px;font-family:Cinzel,serif;padding:2px 8px;border:1px solid rgba(245,245,220,0.2);color:rgba(245,245,220,0.4);">Référente</span>' : ''}
+                ${e.isRef ? '<span style="font-size:7px;font-family:Cinzel,serif;padding:2px 8px;border:1px solid rgba(245,245,220,0.2);color:rgba(245,245,220,0.4);">Référente</span>' : '<span style="font-size:7px;font-family:Cinzel,serif;padding:2px 8px;border:1px solid rgba(160,200,180,0.3);color:rgba(160,210,185,0.7);">Inscrite</span>'}
               </div>
             </div>
             <div style="margin-top:0.75rem;">
-              <p class="font-cinzel" style="font-size:7px;letter-spacing:0.2em;color:rgba(245,245,220,0.2);text-transform:uppercase;margin-bottom:0.4rem;">Prestations proposées (${e.prestations.length})</p>
+              <p class="font-cinzel" style="font-size:7px;letter-spacing:0.2em;color:rgba(245,245,220,0.2);text-transform:uppercase;margin-bottom:0.4rem;">Prestations proposées (${prestos.length})</p>
               <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                ${e.prestations.map(p => `<span style="font-size:8px;font-family:'Cinzel',serif;padding:2px 8px;border:1px solid rgba(196,149,106,0.25);color:rgba(196,149,106,0.6);">${p}</span>`).join('')}
+                ${prestos.map(p => { var lbl = (typeof p === 'string') ? p : (p.nom || p.name || p.titre || p.label || 'Prestation'); return `<span style="font-size:8px;font-family:'Cinzel',serif;padding:2px 8px;border:1px solid rgba(196,149,106,0.25);color:rgba(196,149,106,0.6);">${lbl}</span>`; }).join('')}
               </div>
             </div>
-          </div>`).join('')}
+          </div>`; }).join('')}
         </div>
       </div>
     `;
@@ -9013,8 +9077,22 @@ function buildElyaSystemPrompt() {
       } catch (e) { console.warn('Members load:', e && e.message); }
     }
 
+    // ── LISTE DES EXPERTES (réelles, inscrites sur le site experte) ─────────
+    async function loadExperts() {
+      var c = _client();
+      if (!c) return;
+      try {
+        var res = await c.from('experts').select('*').order('updated_at', { ascending: false });
+        if (res && res.data) {
+          window._cloudExperts = res.data;
+          if (typeof state !== 'undefined' && state.step === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel();
+          else if (typeof state !== 'undefined' && state.step === 'expertes' && typeof renderExpertes === 'function') renderExpertes();
+        }
+      } catch (e) { console.warn('Experts load:', e && e.message); }
+    }
+
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -9033,7 +9111,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v11 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v12 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
