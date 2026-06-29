@@ -4124,7 +4124,8 @@
                 tags: p.tags || [],
                 comments: p.comments || 0,
                 isPinned: p.isPinned || false,
-                _cloudId: p._cloudId || null
+                _cloudId: p._cloudId || null,
+                _ownerId: p._ownerId || null
               }))].filter(p => state.feedFilter === 'Tout' || (p.tags||[]).includes(state.feedFilter)).map(post => `
                 <div class="glass-box p-5 border border-accent/8">
                   <div class="flex justify-between items-start mb-3">
@@ -4152,7 +4153,7 @@
                     <button style="font-size:10px;color:rgba(245,245,220,0.25);background:transparent;border:none;cursor:pointer;font-family:'Cinzel',serif;">
                       ✦ ${post.comments} réponses
                     </button>
-                    ${(post._cloudId && state.user && post.author === state.user.name) ? `<button onclick="clientDeletePost(${post._cloudId})" style="font-size:10px;color:rgba(200,80,80,0.55);background:transparent;border:none;cursor:pointer;font-family:'Cinzel',serif;margin-left:auto;">Supprimer</button>` : ''}
+                    ${(post._cloudId && state.user && ((post._ownerId && post._ownerId === state.user.id) || post.author === state.user.name)) ? `<button onclick="clientDeletePost(${post._cloudId})" style="font-size:10px;color:rgba(200,80,80,0.55);background:transparent;border:none;cursor:pointer;font-family:'Cinzel',serif;margin-left:auto;">Supprimer</button>` : ''}
                   </div>
                 </div>
               `).join('')}
@@ -7874,7 +7875,12 @@ function buildElyaSystemPrompt() {
     }
 
     state.adminPromoCodes = state.adminPromoCodes || [];
-    state.adminPromoCodes.unshift({ code, type, value, target, label: label||code, actif, uses: 0, maxUses, expiry: null });
+    var promo = { code, type, value, target, label: label||code, actif, uses: 0, maxUses, expiry: null };
+    state.adminPromoCodes.unshift(promo);
+    if (window._mannyelaCloud) window._mannyelaCloud.saveContent('promo', promo).then(function (r) {
+      if (r && r.ok && r.id) promo._cloudId = r.id;
+      else if (r && r.reason === 'no-session') showNotify('Connectez-vous avec le compte admin Supabase pour activer le code chez les clientes.');
+    });
     showNotify('Code "' + code + '" créé ✦');
     renderAdminPanel();
   }
@@ -7883,6 +7889,7 @@ function buildElyaSystemPrompt() {
     const c = state.adminPromoCodes[i];
     if (!c) return;
     c.actif = !c.actif;
+    if (c._cloudId && window._mannyelaCloud) window._mannyelaCloud.updateContent(c._cloudId, c);
     showNotify(c.actif ? '✦ Code "'+c.code+'" activé' : 'Code "'+c.code+'" désactivé');
     renderAdminPanel();
   }
@@ -7891,25 +7898,29 @@ function buildElyaSystemPrompt() {
     const c = state.adminPromoCodes[i];
     if (!c) return;
     state.adminPromoCodes.splice(i, 1);
+    if (c._cloudId && window._mannyelaCloud) window._mannyelaCloud.deleteContent(c._cloudId);
     showNotify('Code supprimé');
     renderAdminPanel();
   }
 
   // ─── Admin: gestion défis ─────────────────────────────────────────
   function adminDeleteChallenge(idx) {
-    state.adminChallenges.splice(idx, 1);
+    var it = state.adminChallenges.splice(idx, 1)[0];
+    if (it && it._cloudId && window._mannyelaCloud) window._mannyelaCloud.deleteContent(it._cloudId);
     showNotify('Défi supprimé');
     renderAdminPanel();
   }
 
   function adminDeleteEvenement(idx) {
-    state.adminEvenements.splice(idx, 1);
+    var it = state.adminEvenements.splice(idx, 1)[0];
+    if (it && it._cloudId && window._mannyelaCloud) window._mannyelaCloud.deleteContent(it._cloudId);
     showNotify('Événement supprimé');
     renderAdminPanel();
   }
 
   function adminDeleteVideo(idx) {
-    state.adminVideos.splice(idx, 1);
+    var it = state.adminVideos.splice(idx, 1)[0];
+    if (it && it._cloudId && window._mannyelaCloud) window._mannyelaCloud.deleteContent(it._cloudId);
     showNotify('Vidéo supprimée');
     renderAdminPanel();
   }
@@ -8048,7 +8059,12 @@ function buildElyaSystemPrompt() {
     const debut = document.getElementById('adm-ch-debut')?.value?.trim();
     const fin   = document.getElementById('adm-ch-fin')?.value?.trim();
     if (!titre || !desc) { showNotify('Titre et description requis'); return; }
-    state.adminChallenges.push({ titre, desc, dateDebut: debut, dateFin: fin, actif: true, participants: 0, id: Date.now() });
+    var obj = { titre, desc, dateDebut: debut, dateFin: fin, actif: true, participants: 0, id: Date.now() };
+    state.adminChallenges.unshift(obj);
+    if (window._mannyelaCloud) window._mannyelaCloud.saveContent('challenge', obj).then(function (r) {
+      if (r && r.ok && r.id) obj._cloudId = r.id;
+      else if (r && r.reason === 'no-session') showNotify('Connectez-vous avec le compte admin Supabase pour publier aux clientes.');
+    });
     showNotify('Défi publié ✦');
     renderAdminPanel();
   }
@@ -8061,7 +8077,12 @@ function buildElyaSystemPrompt() {
     const host  = document.getElementById('adm-ev-host')?.value?.trim();
     const lien  = document.getElementById('adm-ev-lien')?.value?.trim();
     if (!titre || !date) { showNotify('Titre et date requis'); return; }
-    state.adminEvenements.push({ titre, date, day, type, host, lien: lien || null, id: Date.now() });
+    var objE = { titre, date, day, type, host, lien: lien || null, id: Date.now() };
+    state.adminEvenements.unshift(objE);
+    if (window._mannyelaCloud) window._mannyelaCloud.saveContent('event', objE).then(function (r) {
+      if (r && r.ok && r.id) objE._cloudId = r.id;
+      else if (r && r.reason === 'no-session') showNotify('Connectez-vous avec le compte admin Supabase pour publier aux clientes.');
+    });
     showNotify('Événement publié ✦');
     renderAdminPanel();
   }
@@ -8074,7 +8095,12 @@ function buildElyaSystemPrompt() {
     const url        = document.getElementById('adm-vi-url')?.value?.trim();
     const thumbnail  = document.getElementById('adm-vi-thumb')?.value?.trim();
     if (!titre) { showNotify('Titre requis'); return; }
-    state.adminVideos.push({ titre, duration, category, instructor, url: url || null, thumbnail: thumbnail || null, id: Date.now() });
+    var objV = { titre, duration, category, instructor, url: url || null, thumbnail: thumbnail || null, id: Date.now() };
+    state.adminVideos.unshift(objV);
+    if (window._mannyelaCloud) window._mannyelaCloud.saveContent('video', objV).then(function (r) {
+      if (r && r.ok && r.id) objV._cloudId = r.id;
+      else if (r && r.reason === 'no-session') showNotify('Connectez-vous avec le compte admin Supabase pour publier aux clientes.');
+    });
     showNotify('Vidéo publiée ✦');
     renderAdminPanel();
   }
@@ -9036,10 +9062,10 @@ function buildElyaSystemPrompt() {
         if (je && je.data) state.journalEntries = je.data.map(function (r) { return r.entry; });
       } catch (e) { console.warn('Cloud journal load:', e && e.message); }
       try {
-        var cp = await c.from('community_posts').select('post,created_at')
+        var cp = await c.from('community_posts').select('id,user_id,post,created_at')
                         .order('created_at', { ascending: false }).limit(100);
         if (cp && cp.data) {
-          var cloudPosts = cp.data.map(function (r) { var p = Object.assign({}, r.post); p._cloudId = r.id; return p; });
+          var cloudPosts = cp.data.map(function (r) { var p = Object.assign({}, r.post); p._cloudId = r.id; p._ownerId = r.user_id; return p; });
           state.communityFeed = cloudPosts.concat(_seedFeed());
         }
       } catch (e) { console.warn('Cloud posts load:', e && e.message); }
@@ -9091,8 +9117,56 @@ function buildElyaSystemPrompt() {
       } catch (e) { console.warn('Experts load:', e && e.message); }
     }
 
+    // ── CONTENU ADMIN (défis / événements / vidéos) — visible par les clientes ─
+    async function saveContent(type, data) {
+      var u = await _sbUser(); if (!u) return { ok: false, reason: 'no-session' };
+      try {
+        var res = await _client().from('admin_content').insert({ type: type, data: data }).select();
+        if (res.error) return { ok: false, reason: res.error.message };
+        return { ok: true, id: (res.data && res.data[0] && res.data[0].id) };
+      } catch (e) { return { ok: false, reason: e && e.message }; }
+    }
+    async function deleteContent(cloudId) {
+      if (!cloudId) return { ok: false, reason: 'no-id' };
+      var u = await _sbUser(); if (!u) return { ok: false, reason: 'no-session' };
+      try {
+        var res = await _client().from('admin_content').delete().eq('id', cloudId).select();
+        if (res.error) return { ok: false, reason: res.error.message };
+        return { ok: !!(res.data && res.data.length > 0) };
+      } catch (e) { return { ok: false, reason: e && e.message }; }
+    }
+    async function updateContent(cloudId, data) {
+      if (!cloudId) return { ok: false, reason: 'no-id' };
+      var u = await _sbUser(); if (!u) return { ok: false, reason: 'no-session' };
+      try {
+        var res = await _client().from('admin_content').update({ data: data }).eq('id', cloudId).select();
+        if (res.error) return { ok: false, reason: res.error.message };
+        return { ok: !!(res.data && res.data.length > 0) };
+      } catch (e) { return { ok: false, reason: e && e.message }; }
+    }
+    async function loadContent() {
+      var c = _client(); if (!c) return;
+      try {
+        var res = await c.from('admin_content').select('id,type,data,created_at').order('created_at', { ascending: false });
+        if (res.error) { console.warn('Content load:', res.error.message); return; }
+        var rows = res.data || [];
+        function pick(t) { return rows.filter(function (r) { return r.type === t; }).map(function (r) { return Object.assign({}, r.data, { _cloudId: r.id }); }); }
+        if (typeof state !== 'undefined') {
+          state.adminChallenges = pick('challenge');
+          state.adminEvenements = pick('event');
+          state.adminVideos = pick('video');
+          // Codes promo : codes cloud + codes par défaut (intégrés) non dupliqués
+          if (!window._seedPromos) window._seedPromos = (state.adminPromoCodes || []).slice();
+          var cloudPromos = pick('promo');
+          state.adminPromoCodes = cloudPromos.concat((window._seedPromos || []).filter(function (d) { return !cloudPromos.some(function (p) { return p.code === d.code; }); }));
+          if (state.step === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel();
+          else if ((state.step === 'profile' || state.step === 'community') && typeof renderProfile === 'function') renderProfile();
+        }
+      } catch (e) { console.warn('Content load:', e && e.message); }
+    }
+
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts, saveContent: saveContent, deleteContent: deleteContent, updateContent: updateContent, loadContent: loadContent };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -9106,12 +9180,14 @@ function buildElyaSystemPrompt() {
       });
       // Si déjà connecté au chargement de la page
       setTimeout(loadAll, 1200);
+      // Contenu admin (défis/événements/vidéos) visible par tous, même non connecté
+      setTimeout(loadContent, 1300);
     })();
   })();
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v12 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v14 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
