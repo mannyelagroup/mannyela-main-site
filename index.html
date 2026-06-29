@@ -12,11 +12,11 @@
   <meta name="application-name" content="Mannyela">
 
   <title>Mannyela — Expertise Capillaire · Cheveux Bouclés, Frisés & Crépus · France</title>
-  <meta name="description" content="Maison Mannyela — Expertise capillaire pour cheveux bouclés, frisés et crépus. Coach IA ELYA, journal de couronne, réservation d'expertes. Paris, France.">
+  <meta name="description" content="Maison Mannyela — Votre journal capillaire avec sa plante interactive qui grandit au rythme de vos soins. Pour cheveux bouclés, frisés et crépus. Coach IA ELYA & expertes certifiées. Paris, France.">
   <meta name="keywords" content="cheveux crépus, cheveux bouclés, cheveux frisés, soins capillaires, tresses, braids, locks, vanilles, coach capillaire, diagnostic capillaire, rituel cheveux naturels, France, Paris">
   <meta name="robots" content="index, follow">
   <meta property="og:title" content="Mannyela — Expertise Capillaire · Cheveux Texturés · France">
-  <meta property="og:description" content="La première Maison de Health Tech capillaire dédiée aux cheveux bouclés, frisés et crépus. IA ELYA, Journal de couronne, expertes certifiées.">
+  <meta property="og:description" content="Votre journal capillaire avec sa plante interactive qui grandit au rythme de vos soins. La première Maison de Health Tech capillaire pour cheveux bouclés, frisés et crépus. IA ELYA & expertes certifiées.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://mannyelagroup.com/">
   <meta property="og:locale" content="fr_FR">
@@ -1638,6 +1638,7 @@
     const pages = {
       landing: { nav: 'nav-home', fn: renderLanding },
       diagnostic: { nav: '', fn: renderDiagnostic },
+      'scan-ia': { nav: '', fn: renderScanIA },
       range: { nav: '', fn: () => {} },
       history: { nav: 'nav-history', fn: renderHistory },
       expertes: { nav: 'nav-expertes', fn: renderExpertes },
@@ -1690,7 +1691,7 @@
         <p class="font-cinzel" style="font-size:9px; letter-spacing:0.5em; color:rgba(245,245,220,0.4); text-transform:uppercase; margin-bottom:1.25rem;">Bienvenue dans la Maison</p>
 
         <p style="font-size:13px; color:rgba(245,245,220,0.6); max-width:480px; line-height:1.9; margin-bottom:2.5rem; font-weight:300;">
-          Mannyela met en relation les clientes avec des expertes capillaires spécialisées dans les textures naturelles. Un accompagnement sur mesure, pour chaque couronne.
+          Mannyela, c'est votre <strong style="color:rgba(245,245,220,0.6);font-weight:400;">journal capillaire avec sa plante interactive</strong> qui grandit au rythme de vos soins — et la mise en relation avec des expertes spécialisées dans les textures naturelles. Un accompagnement sur mesure, pour chaque couronne.
         </p>
 
         <div class="flex flex-col sm:flex-row gap-4 mb-20 fade-in-delay2">
@@ -2386,6 +2387,83 @@
     if (typeof renderAuthBar === 'function') renderAuthBar();
     showNotify('Nom mis à jour ✦');
     renderProfile();
+  }
+
+  // ── DÉFIS : participation + paliers ──────────────────────────────────────
+  function _renderChallengeBody(c) {
+    var cid = c._cloudId;
+    var paliers = Array.isArray(c.paliers) ? c.paliers : [];
+    // Vue ADMIN : liste des participantes
+    if (state.user && state.user.isAdmin) {
+      var parts = (window._allParticipants || []).filter(function (p) { return String(p.challenge_id) === String(cid); });
+      var h = '<p style="font-size:9px;font-family:Cinzel,serif;letter-spacing:0.2em;color:rgba(196,149,106,0.6);text-transform:uppercase;margin-bottom:0.5rem;">' + parts.length + ' participante' + (parts.length > 1 ? 's' : '') + (paliers.length ? (' · ' + paliers.length + ' paliers') : '') + '</p>';
+      h += parts.length ? parts.map(function (p) {
+        var done = (p.progress || []).length;
+        return '<div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(245,245,220,0.5);padding:3px 0;border-bottom:1px solid rgba(245,245,220,0.04);"><span>' + (p.name || p.email || 'Membre') + '</span><span style="color:rgba(196,149,106,0.6);">' + done + '/' + (paliers.length || '?') + ' paliers</span></div>';
+      }).join('') : '<p style="font-size:10px;color:rgba(245,245,220,0.25);">Aucune participante pour l\'instant.</p>';
+      return h;
+    }
+    // Vue CLIENTE
+    if (!cid) return '<button onclick="showNotify(\'Défi bientôt disponible\')" class="btn-mannyela" style="font-size:9px;">Je participe ✦</button>';
+    var myProg = (window._myParticipations && window._myParticipations[cid] !== undefined) ? window._myParticipations[cid] : null;
+    if (myProg === null) {
+      return '<button onclick="participerDefi(' + cid + ')" class="btn-mannyela" style="font-size:9px;">Je participe ✦</button>';
+    }
+    if (!paliers.length) return '<p style="font-size:11px;color:rgba(160,210,185,0.8);font-family:Cinzel,serif;">✓ Vous participez à ce défi</p>';
+    var out = '<p style="font-size:9px;font-family:Cinzel,serif;letter-spacing:0.2em;color:rgba(160,210,185,0.75);text-transform:uppercase;margin-bottom:0.6rem;">Vos paliers (' + myProg.length + '/' + paliers.length + ')</p>';
+    out += paliers.map(function (pl, idx) {
+      var label = (typeof pl === 'string') ? pl : (pl.titre || pl.label || ('Palier ' + (idx + 1)));
+      var checked = myProg.indexOf(idx) > -1;
+      return '<div onclick="togglePalier(' + cid + ',' + idx + ')" style="display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;cursor:pointer;font-size:11px;color:' + (checked ? 'rgba(160,210,185,0.95)' : 'rgba(245,245,220,0.5)') + ';"><span style="width:18px;height:18px;border:1px solid ' + (checked ? 'rgba(160,210,185,0.7)' : 'rgba(245,245,220,0.2)') + ';background:' + (checked ? 'rgba(160,210,185,0.2)' : 'transparent') + ';display:inline-flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;font-size:11px;">' + (checked ? '✓' : '') + '</span>' + label + '</div>';
+    }).join('');
+    return out;
+  }
+
+  async function participerDefi(cid) {
+    if (!window._mannyelaCloud || !window._mannyelaCloud.joinChallenge) { showNotify('Indisponible'); return; }
+    var r = await window._mannyelaCloud.joinChallenge(cid);
+    if (r && r.ok) {
+      if (!window._myParticipations) window._myParticipations = {};
+      window._myParticipations[cid] = window._myParticipations[cid] || [];
+      showNotify('Vous participez au défi ✦');
+    } else if (r && r.reason === 'no-session') {
+      showNotify('Connectez-vous pour participer au défi.');
+    } else {
+      showNotify('Action impossible — réessayez.');
+    }
+    switchProfileTab('communaute');
+  }
+
+  async function togglePalier(cid, idx) {
+    if (!window._myParticipations) window._myParticipations = {};
+    var arr = (window._myParticipations[cid] || []).slice();
+    var pos = arr.indexOf(idx);
+    if (pos > -1) arr.splice(pos, 1); else arr.push(idx);
+    window._myParticipations[cid] = arr;
+    if (window._mannyelaCloud && window._mannyelaCloud.setChallengeProgress) window._mannyelaCloud.setChallengeProgress(cid, arr);
+    switchProfileTab('communaute');
+  }
+
+  // Niveau 3 : écrire dans le journal valide automatiquement le prochain palier
+  // des défis auxquels la cliente participe (s'ajoute à la coche manuelle).
+  function _autoAdvanceChallenges() {
+    try {
+      if (!window._myParticipations) return;
+      var advanced = 0;
+      (state.adminChallenges || []).forEach(function (c) {
+        var cid = c._cloudId; if (!cid) return;
+        if (window._myParticipations[cid] === undefined) return; // pas inscrite
+        var paliers = Array.isArray(c.paliers) ? c.paliers : [];
+        if (!paliers.length) return;
+        var prog = (window._myParticipations[cid] || []).slice();
+        if (prog.length >= paliers.length) return; // déjà complet
+        for (var i = 0; i < paliers.length; i++) { if (prog.indexOf(i) === -1) { prog.push(i); break; } }
+        window._myParticipations[cid] = prog;
+        if (window._mannyelaCloud && window._mannyelaCloud.setChallengeProgress) window._mannyelaCloud.setChallengeProgress(cid, prog);
+        advanced++;
+      });
+      if (advanced > 0) setTimeout(function () { showNotify('✦ Palier validé par votre entrée de journal'); }, 700);
+    } catch (e) {}
   }
 
   // ═══════════════════════════════════════════
@@ -4188,7 +4266,7 @@
                       ${state.user.isAdmin ? `<button onclick="adminDeleteChallenge(${i})" style="font-size:9px;font-family:'Cinzel',serif;padding:3px 10px;border:1px solid rgba(200,80,80,0.3);color:rgba(200,80,80,0.5);background:none;cursor:pointer;">Supprimer</button>` : ''}
                     </div>
                     <p style="font-size:11px;color:rgba(245,245,220,0.45);line-height:1.7;margin-bottom:1.25rem;">${c.desc}</p>
-                    <button onclick="showNotify('Vous participez au défi ✦')" class="btn-mannyela" style="font-size:9px;">Je participe ✦</button>
+                    ${_renderChallengeBody(c)}
                   </div>`).join('')}
                 </div>
               `}
@@ -4246,14 +4324,14 @@
                   ${state.adminVideos.map((v, i) => `
                   <div style="border:1px solid rgba(245,245,220,0.07);background:rgba(255,255,255,0.01);cursor:pointer;" onclick="${v.url ? `window.open('${v.url}','_blank')` : "showNotify('Vidéo bientôt disponible')"}">
                     <div style="position:relative;background:rgba(245,245,220,0.03);aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
-                      ${v.thumbnail ? `<img src="${v.thumbnail}" style="width:100%;height:100%;object-fit:cover;opacity:0.7;" onerror="this.style.display='none'"/>` : ''}
+                      ${_videoThumb(v) ? `<img src="${_videoThumb(v)}" style="width:100%;height:100%;object-fit:cover;opacity:0.7;" onerror="this.style.display='none'"/>` : ''}
                       <div style="position:absolute;width:36px;height:36px;border-radius:50%;border:1px solid rgba(196,149,106,0.5);display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="rgba(196,149,106,0.9)"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                       </div>
                       ${state.user.isAdmin ? `<button onclick="event.stopPropagation();adminDeleteVideo(${i})" style="position:absolute;top:6px;right:6px;font-size:9px;background:rgba(0,0,0,0.6);border:1px solid rgba(200,80,80,0.4);color:rgba(200,80,80,0.7);cursor:pointer;padding:2px 7px;font-family:'Cinzel',serif;">×</button>` : ''}
                     </div>
                     <div style="padding:0.85rem;">
-                      <span style="font-size:7px;font-family:'Cinzel',serif;letter-spacing:0.15em;padding:2px 8px;border:1px solid rgba(245,245,220,0.12);color:rgba(245,245,220,0.35);">${v.category || ''}</span>
+                      ${v.category ? `<span style="font-size:7px;font-family:'Cinzel',serif;letter-spacing:0.15em;padding:2px 8px;border:1px solid rgba(245,245,220,0.12);color:rgba(245,245,220,0.35);">${v.category}</span>` : ''}
                       <p class="font-cinzel" style="font-size:11px;color:rgba(245,245,220,0.75);margin-top:0.5rem;">${v.titre}</p>
                       <p style="font-size:9px;color:rgba(245,245,220,0.3);margin-top:0.25rem;">${v.duration || ''} · ${v.instructor || ''}</p>
                     </div>
@@ -4846,6 +4924,7 @@
       window._mannyelaCloud.saveJournal(state.journalEntries[0]);
       window._mannyelaCloud.saveFiche(); // met à jour l'analyse ELYA partagée à l'experte
     }
+    _autoAdvanceChallenges(); // valide un palier des défis en cours
     switchProfileTab('journal');
   }
 
@@ -7955,6 +8034,8 @@ function buildElyaSystemPrompt() {
                 <input type="text" id="adm-ch-fin" placeholder="Date fin (ex: 30 Juin 2026)"
                   style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(245,245,220,0.1);padding:0.65rem 0.9rem;color:rgba(245,245,220,0.8);font-family:'Montserrat',sans-serif;font-size:12px;outline:none;"/>
               </div>
+              <textarea id="adm-ch-paliers" rows="4" placeholder="Paliers / étapes — une par ligne (ex:&#10;Semaine 1 : hydratation quotidienne&#10;Semaine 2 : bain d'huile&#10;Semaine 3 : photo avant/après)"
+                style="background:rgba(255,255,255,0.03);border:1px solid rgba(245,245,220,0.1);padding:0.65rem 0.9rem;color:rgba(245,245,220,0.8);font-family:'Montserrat',sans-serif;font-size:12px;outline:none;resize:vertical;"></textarea>
               <button onclick="adminAddChallenge()"
                 style="align-self:flex-start;font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;padding:0.7rem 1.5rem;border:1px solid rgba(196,149,106,0.4);color:rgba(196,149,106,0.9);background:rgba(196,149,106,0.06);cursor:pointer;">
                 Publier le défi ✦
@@ -8059,7 +8140,9 @@ function buildElyaSystemPrompt() {
     const debut = document.getElementById('adm-ch-debut')?.value?.trim();
     const fin   = document.getElementById('adm-ch-fin')?.value?.trim();
     if (!titre || !desc) { showNotify('Titre et description requis'); return; }
-    var obj = { titre, desc, dateDebut: debut, dateFin: fin, actif: true, participants: 0, id: Date.now() };
+    var paliersRaw = document.getElementById('adm-ch-paliers')?.value || '';
+    var paliers = paliersRaw.split('\n').map(function(s){ return s.trim(); }).filter(Boolean).map(function(t){ return { titre: t }; });
+    var obj = { titre, desc, dateDebut: debut, dateFin: fin, paliers: paliers, actif: true, participants: 0, id: Date.now() };
     state.adminChallenges.unshift(obj);
     if (window._mannyelaCloud) window._mannyelaCloud.saveContent('challenge', obj).then(function (r) {
       if (r && r.ok && r.id) obj._cloudId = r.id;
@@ -8085,6 +8168,15 @@ function buildElyaSystemPrompt() {
     });
     showNotify('Événement publié ✦');
     renderAdminPanel();
+  }
+
+  // Miniature vidéo : utilise l'URL fournie, sinon la déduit d'un lien YouTube.
+  function _videoThumb(v) {
+    if (v && v.thumbnail) return v.thumbnail;
+    var u = (v && v.url) || '';
+    var m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (m) return 'https://img.youtube.com/vi/' + m[1] + '/hqdefault.jpg';
+    return null;
   }
 
   function adminAddVideo() {
@@ -9146,6 +9238,8 @@ function buildElyaSystemPrompt() {
     }
     async function loadContent() {
       var c = _client(); if (!c) return;
+      loadMyParticipations();   // participations de la cliente (pour ses paliers)
+      loadAllParticipants();    // toutes les participations (pour l'admin)
       try {
         var res = await c.from('admin_content').select('id,type,data,created_at').order('created_at', { ascending: false });
         if (res.error) { console.warn('Content load:', res.error.message); return; }
@@ -9165,8 +9259,50 @@ function buildElyaSystemPrompt() {
       } catch (e) { console.warn('Content load:', e && e.message); }
     }
 
+    // ── DÉFIS : participation + paliers ─────────────────────────────────────
+    async function joinChallenge(challengeId) {
+      var u = await _sbUser(); if (!u) return { ok: false, reason: 'no-session' };
+      try {
+        var res = await _client().from('challenge_participants').upsert({
+          challenge_id: challengeId, user_id: u.id, email: u.email,
+          name: (state.user && state.user.name) || (u.email || '').split('@')[0], progress: []
+        }, { onConflict: 'challenge_id,user_id' });
+        return { ok: !res.error, reason: res.error && res.error.message };
+      } catch (e) { return { ok: false, reason: e && e.message }; }
+    }
+    async function setChallengeProgress(challengeId, progress) {
+      var u = await _sbUser(); if (!u) return { ok: false };
+      try {
+        await _client().from('challenge_participants').upsert({
+          challenge_id: challengeId, user_id: u.id, email: u.email,
+          name: (state.user && state.user.name) || '', progress: progress
+        }, { onConflict: 'challenge_id,user_id' });
+        return { ok: true };
+      } catch (e) { return { ok: false }; }
+    }
+    async function loadMyParticipations() {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        var res = await _client().from('challenge_participants').select('challenge_id,progress').eq('user_id', u.id);
+        window._myParticipations = {};
+        if (res.data) res.data.forEach(function (r) { window._myParticipations[r.challenge_id] = r.progress || []; });
+      } catch (e) {}
+    }
+    async function loadAllParticipants() {
+      var c = _client(); if (!c) return;
+      try {
+        var res = await c.from('challenge_participants').select('challenge_id,email,name,progress');
+        if (res && res.data) {
+          window._allParticipants = res.data;
+          if (typeof state !== 'undefined' && (state.step === 'admin' || state.step === 'profile' || state.step === 'community') && typeof renderProfile === 'function') {
+            if (state.step === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel(); else renderProfile();
+          }
+        }
+      } catch (e) {}
+    }
+
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts, saveContent: saveContent, deleteContent: deleteContent, updateContent: updateContent, loadContent: loadContent };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts, saveContent: saveContent, deleteContent: deleteContent, updateContent: updateContent, loadContent: loadContent, joinChallenge: joinChallenge, setChallengeProgress: setChallengeProgress, loadMyParticipations: loadMyParticipations, loadAllParticipants: loadAllParticipants };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -9187,7 +9323,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v14 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v17 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
