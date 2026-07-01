@@ -1211,9 +1211,16 @@
       const adminBadge = state.user.isAdmin
         ? `<span onclick="goTo('admin')" class="nav-link cursor-pointer" style="font-family:'Cinzel',serif;font-size:7px;letter-spacing:0.2em;padding:3px 10px;border:1px solid rgba(196,149,106,0.5);color:rgba(196,149,106,0.9);background:rgba(196,149,106,0.06);">✦ ADMIN</span>`
         : '';
+      var _nc = (typeof _notifCount === 'function') ? _notifCount() : 0;
+      try { if (navigator.setAppBadge) { _nc > 0 ? navigator.setAppBadge(_nc) : navigator.clearAppBadge(); } } catch(e){}
+      const bell = `<span onclick="openNotifications()" class="cursor-pointer" title="Notifications" style="position:relative;display:inline-flex;align-items:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,220,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            ${_nc > 0 ? `<span style="position:absolute;top:-7px;right:-8px;background:#e0403f;color:#fff;font-size:8px;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:'Montserrat',sans-serif;font-weight:600;line-height:1;">${_nc > 9 ? '9+' : _nc}</span>` : ''}
+          </span>`;
       bar.innerHTML = `
         <div class="flex items-center gap-6">
           ${adminBadge}
+          ${bell}
           <span onclick="goTo('profile')" class="nav-link cursor-pointer" style="color:rgba(245,245,220,0.5)">
             Mon Profil · ${state.user.name}
           </span>
@@ -1226,6 +1233,36 @@
           <span onclick="goTo('register')" class="btn-secondary" style="padding:0.5rem 1.25rem; font-size:0.6rem;">Rejoindre</span>
         </div>`;
     }
+  }
+
+  // ── NOTIFICATIONS (pastille rouge) ────────────────────────────────────────
+  // Compte les nouvelles publications/annonces communauté non encore vues.
+  function _notifCount() {
+    try {
+      if (!state.isLoggedIn || !state.user) return 0;
+      var feed = (state.communityFeed || []).filter(function (p) { return p && p._cloudId; });
+      if (!feed.length) return 0;
+      var maxId = feed.reduce(function (m, p) { return Math.max(m, p._cloudId || 0); }, 0);
+      var key = 'mannyela_notif_seen_' + state.user.email;
+      var raw = localStorage.getItem(key);
+      if (raw === null) { localStorage.setItem(key, String(maxId)); return 0; } // première visite : rien de "manqué"
+      var seen = parseInt(raw, 10) || 0;
+      var myName = state.user.name;
+      return feed.filter(function (p) { return p._cloudId > seen && p.author !== myName; }).length;
+    } catch (e) { return 0; }
+  }
+
+  function openNotifications() {
+    try {
+      var feed = (state.communityFeed || []).filter(function (p) { return p && p._cloudId; });
+      var maxId = feed.reduce(function (m, p) { return Math.max(m, p._cloudId || 0); }, 0);
+      if (state.user && state.user.email) localStorage.setItem('mannyela_notif_seen_' + state.user.email, String(maxId));
+      try { if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (e) {}
+    } catch (e) {}
+    state.profileTab = 'communaute';
+    state.communityTab = 'fil';
+    goTo('profile');
+    setTimeout(function () { if (typeof renderAuthBar === 'function') renderAuthBar(); }, 120);
   }
 
   function logout() {
@@ -2790,6 +2827,22 @@
             ✕ Veuillez cocher la case pour continuer
           </p>
 
+          <!-- Newsletter — opt-in RGPD (décoché par défaut, distinct des CGU) -->
+          <input type="checkbox" id="reg-newsletter" style="display:none;">
+          <div id="reg-newsletter-label" style="padding:0.85rem;border:1px solid rgba(245,245,220,0.08);background:rgba(255,255,255,0.01);transition:border-color 0.2s;">
+            <div style="display:flex;align-items:flex-start;gap:0.75rem;">
+              <div id="reg-newsletter-box" onclick="toggleNewsletter()"
+                style="width:22px;height:22px;min-width:22px;border:1.5px solid rgba(245,245,220,0.25);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;margin-top:1px;">
+                <svg id="reg-newsletter-check" width="13" height="13" viewBox="0 0 12 12" fill="none" style="display:none;">
+                  <polyline points="2,6 5,9 10,3" stroke="rgba(126,200,164,0.95)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <p style="font-size:9px;color:rgba(245,245,220,0.45);line-height:1.8;">
+                Je souhaite recevoir la newsletter de Maison Mannyela — événements, offres et conseils capillaires. <span style="color:rgba(245,245,220,0.3);">(Facultatif · désinscription à tout moment)</span>
+              </p>
+            </div>
+          </div>
+
           <button class="btn-mannyela w-full mt-1" onclick="doRegister()">Créer mon compte ✦</button>
           <p class="text-center text-[10px] text-white/25 mt-2">
             Déjà membre ?
@@ -2975,6 +3028,22 @@
     if (err && checked) err.style.display = 'none';
   }
 
+  function toggleNewsletter() {
+    var cb  = document.getElementById('reg-newsletter');
+    var box = document.getElementById('reg-newsletter-box');
+    var chk = document.getElementById('reg-newsletter-check');
+    var lbl = document.getElementById('reg-newsletter-label');
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    var checked = cb.checked;
+    if (box) {
+      box.style.borderColor = checked ? 'rgba(126,200,164,0.6)' : 'rgba(245,245,220,0.25)';
+      box.style.background  = checked ? 'rgba(126,200,164,0.1)'  : 'rgba(255,255,255,0.03)';
+    }
+    if (chk) chk.style.display = checked ? 'block' : 'none';
+    if (lbl) lbl.style.borderColor = checked ? 'rgba(126,200,164,0.35)' : 'rgba(245,245,220,0.08)';
+  }
+
   function acceptCGUFromModal() {
     var cb = document.getElementById('reg-cgu');
     if (cb && !cb.checked) toggleCGU();
@@ -2990,6 +3059,7 @@
     const pass    = document.getElementById('reg-pass')?.value;
     const confirm = document.getElementById('reg-pass-confirm')?.value;
     const cgu     = document.getElementById('reg-cgu')?.checked;
+    const newsletter = document.getElementById('reg-newsletter')?.checked === true;
 
     if (!name || !email)        { showNotify('Prénom et email obligatoires'); return; }
     if (!email.includes('@'))   { showNotify('Email invalide'); return; }
@@ -3021,7 +3091,7 @@
         const { data, error } = await sbClient.auth.signUp({
           email,
           password: pass,
-          options: { data: { name, dob } }
+          options: { data: { name, dob, newsletter: newsletter, newsletter_date: newsletter ? new Date().toISOString() : null } }
         });
         if (error) {
           showNotify(error.message || 'Erreur lors de la création du compte');
@@ -5343,7 +5413,7 @@
   // Utilise un proxy serveur (ex: Cloudflare Worker ou Netlify Function)
   // ── ELYA — Agent Mistral (ton IA capillaire) ──────────────────────────────
   const MISTRAL_API_KEY = 'mck83XTGLMm9HlPGLvD5bKOFg22coThW';
-  const ELYA_AGENT_ID   = atob('YWdfMDE5ZGM2Yzc4ODgyNzYxZjhmMjhhNzJmOTVjMWU1NQ==');
+  const ELYA_AGENT_ID   = atob('YWdfMDE5ZGM2Yzc4ODgyNzYxZjhlMjhhN2YyZjk1YzFlNTU=');
 
   async function callMistralAPI(userText) {
     // Construire l'historique des messages (sans les messages système)
@@ -9026,7 +9096,8 @@ function buildElyaSystemPrompt() {
 })();
 </script>
 
-  <script src="auth.js"></script>
+  <!-- auth.js retiré : il écrasait le formulaire d'inscription (sans date de naissance/CGU) et la connexion. Le site a sa propre authentification complète. -->
+  <!-- <script src="auth.js"></script> -->
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA CLOUD SYNC — Journal, Photo de profil & Posts Communauté
@@ -9125,7 +9196,8 @@ function buildElyaSystemPrompt() {
           id: u.id,
           email: u.email,
           name: (state.user && state.user.name) || (u.email || '').split('@')[0],
-          plan: (state.user && state.user.plan) || 'plante'
+          plan: (state.user && state.user.plan) || 'plante',
+          newsletter: !!(u.user_metadata && u.user_metadata.newsletter)
         });
       } catch (e) { console.warn('Member register:', e && e.message); }
     }
@@ -9323,7 +9395,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v18 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v21 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
