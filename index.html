@@ -5416,21 +5416,22 @@
   const ELYA_AGENT_ID   = atob('YWdfMDE5ZGM2Yzc4ODgyNzYxZjhlMjhhN2YyZjk1YzFlNTU=');
 
   async function callMistralAPI(userText) {
-    // Construire l'historique des messages (sans les messages système)
+    // Construire l'historique (étiquetage correct user/assistant via "sender")
     var history = (state.elyaMessages || [])
-      .filter(function(m) { return m.role !== 'system'; })
-      .slice(-12)
-      .map(function(m) { return { role: m.role === 'user' ? 'user' : 'assistant', content: m.text || m.content || '' }; });
+      .filter(function(m) { return (m.sender || m.role) !== 'system'; })
+      .slice(-10)
+      .map(function(m) {
+        var isUser = (m.sender === 'user') || (m.role === 'user');
+        return { role: isUser ? 'user' : 'assistant', content: m.text || m.content || '' };
+      });
 
     // Ajouter le message actuel
     history.push({ role: 'user', content: userText });
 
-    // Injecter le contexte profil + journal en premier message si vide
-    if (history.length === 1) {
-      var systemCtx = buildElyaSystemPrompt();
-      history.unshift({ role: 'user', content: systemCtx + '\n\nPrésente-toi brièvement à ' + ((state.user && state.user.name) || 'la cliente') + '.' });
-      history.splice(1, 0, { role: 'assistant', content: 'Bonjour ! Je suis ELYA, votre IA capillaire personnelle chez Maison Mannyela. J\'ai bien reçu votre profil et votre journal de bord. Comment puis-je vous aider aujourd\'hui ?' });
-    }
+    // TOUJOURS fournir le contexte (profil + diagnostic + journal) — ELYA a déjà accès aux données.
+    var systemCtx = buildElyaSystemPrompt();
+    history.unshift({ role: 'user', content: 'DONNÉES DE LA CLIENTE — transmises automatiquement par la plateforme Mannyela. Tu y as déjà accès : utilise-les pour personnaliser, et ne demande JAMAIS à la cliente de te partager ses données.\n\n' + systemCtx });
+    history.splice(1, 0, { role: 'assistant', content: 'Bien reçu — j\'ai votre profil, votre diagnostic et votre journal sous les yeux.' });
 
     var response = await fetch('https://api.mistral.ai/v1/agents/completions', {
       method: 'POST',
@@ -5559,7 +5560,8 @@ function buildElyaSystemPrompt() {
       + 'Utilise activement son journal et son historique pour personnaliser chaque reponse.\n'
       + 'Si tu detectes une incoherence (rituel non suivi, casse elevee), mentionne-le avec tact.\n'
       + 'Tes conseils sont fondes sur la trichologie. Tu n\'es pas medecin: oriente vers un professionnel pour problemes dermatologiques.\n'
-      + 'Reponses en francais, concises (3-6 phrases). Si la cliente evoque une experte, propose-lui de reserver. Sa fiche (texture, journal, rituel) est transmise automatiquement a l\'experte lors de la reservation.';
+      + 'Reponses en francais, concises (3-5 phrases), chaleureuses, adressees directement a ' + name + '.\n'
+      + 'REGLES DE STYLE STRICTES : ecris en texte simple. INTERDIT : le markdown (pas de **, pas de ###, pas de tirets ---, pas de listes a puces), les prefixes du type "Reponse d\'Elya", et surtout n\'affiche JAMAIS de "Note technique", de "Resume pour votre experte" ni aucune instruction interne. Parle comme une conseillere bienveillante, naturellement.';
   }
 
   // Analyse ELYA "en arrière-plan" : résumé déterministe du journal + conseils,
@@ -5595,6 +5597,24 @@ function buildElyaSystemPrompt() {
       derniere_entree: last ? { date: last.date, title: last.title, indicators: last.indicators || null } : null,
       elya_analyse: analyse.join(' ')
     };
+  }
+
+  // Nettoie la réponse d'ELYA : retire le markdown et les notes internes destinées à l'experte.
+  function _cleanElyaReply(t) {
+    if (!t) return t;
+    var s = String(t);
+    // Couper tout ce qui suit une section interne (résumé experte / note technique)
+    s = s.split(/(?:#{1,6}\s*)?(?:📋\s*)?R[ÉE]SUM[ÉE]\s+POUR\s+(?:VOTRE\s+)?EXPERTE/i)[0];
+    s = s.split(/Note\s+technique/i)[0];
+    // Retirer le markdown
+    s = s.replace(/\*\*([^*]+)\*\*/g, '$1');   // **gras**
+    s = s.replace(/\*([^*]+)\*/g, '$1');         // *italique*
+    s = s.replace(/^#{1,6}\s*/gm, '');           // titres ###
+    s = s.replace(/^\s*[-–—_]{3,}\s*$/gm, '');   // lignes --- ___
+    s = s.replace(/`/g, '');                      // code `
+    s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1'); // liens [texte](url) -> texte
+    s = s.replace(/\n{3,}/g, '\n\n').trim();
+    return s;
   }
 
   function getElyaFallback(question) {
@@ -6058,10 +6078,56 @@ function buildElyaSystemPrompt() {
     state.sessionsWithDiscount.push({ prix: basePrix, reduction: savings, date: new Date().toLocaleDateString('fr-FR') });
   }
 
+  /* ═══ LIENS DE PAIEMENT ABONNEMENTS CLIENTES (Stripe) ═══
+     Collez ici vos 3 liens Stripe (buy.stripe.com/...).
+     Dans chaque lien, page de confirmation → rediriger vers :
+       Journal  → https://mannyelagroup.com/?plan_active=journal
+       Premium  → https://mannyelagroup.com/?plan_active=premium
+       Élite    → https://mannyelagroup.com/?plan_active=elite */
+  window.CLIENT_PAYMENT_LINKS = {
+    journal: 'https://buy.stripe.com/fZu3cn7oB6HL7gweQueIw01?prefilled_promo_code=JOURNAL26',
+    premium: 'https://buy.stripe.com/9B6fZ9cIV5DH6cseQueIw02?prefilled_promo_code=ELYA26',
+    elite: 'https://buy.stripe.com/3cI6ozaANead30gcImeIw04?prefilled_promo_code=ELITE2'
+  };
+
+  // Retour de paiement Stripe (?plan_active=journal|premium|elite) → activer l'abonnement
+  function _applyPlanActive(pa) {
+    state.plan = pa;
+    if (state.user) state.user.plan = pa;
+    state.subscriptionMonths = 1;
+    state.subscriptionStartDate = new Date().toISOString();
+    try { var c = window._supabaseClient || window.supabase; if (c && c.auth && c.auth.updateUser) c.auth.updateUser({ data: { plan: pa } }); } catch (e) {}
+    if (window._mannyelaCloud && window._mannyelaCloud.registerMember) window._mannyelaCloud.registerMember();
+    if (typeof renderAuthBar === 'function') renderAuthBar();
+    if (typeof showNotify === 'function') showNotify('✦ Abonnement ' + (PLANS[pa] ? PLANS[pa].label : pa) + ' activé — merci !');
+    try { history.replaceState({}, '', location.pathname); } catch (e) {}
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      var pa = new URLSearchParams(location.search).get('plan_active');
+      if (!pa || ['journal', 'premium', 'elite'].indexOf(pa) === -1) return;
+      var tries = 0;
+      var iv = setInterval(function () {
+        tries++;
+        if (typeof state !== 'undefined' && state.isLoggedIn && state.user) { clearInterval(iv); _applyPlanActive(pa); }
+        else if (tries > 24) { clearInterval(iv); if (typeof state !== 'undefined') _applyPlanActive(pa); }
+      }, 500);
+    } catch (e) {}
+  });
+
   function upgradePlan(plan) {
     // Plans payants (Journal / Premium / Élite) : paiement Stripe OBLIGATOIRE.
     // Jamais d'activation gratuite, même si Stripe n'est pas disponible.
     if (plan !== 'free' && plan !== 'plante') {
+      // 1) Lien de paiement Stripe (recommandé)
+      var _links = window.CLIENT_PAYMENT_LINKS || {};
+      var _url = _links[plan];
+      if (_url && /^https?:\/\//.test(_url)) {
+        showNotify('Redirection vers le paiement sécurisé…');
+        window.location.href = _url;
+        return;
+      }
+      // 2) Repli : ancien flux Stripe Elements si configuré
       if (typeof stripe !== 'undefined' && stripe && typeof stripeSubscribe === 'function') {
         stripeSubscribe(plan);
       } else {
@@ -6407,8 +6473,9 @@ function buildElyaSystemPrompt() {
         return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
       })();
       state.elyaTyping = false;
-      state.elyaMessages.push({ sender: 'elya', text: reply || getElyaFallback(text), time: rt });
+      state.elyaMessages.push({ sender: 'elya', text: reply ? _cleanElyaReply(reply) : getElyaFallback(text), time: rt });
       _updateElyaMessages();
+      if (window._mannyelaCloud && window._mannyelaCloud.saveElya) window._mannyelaCloud.saveElya();
     }).catch(function() {
       const rt = (function() {
         const d = new Date();
@@ -6417,6 +6484,7 @@ function buildElyaSystemPrompt() {
       state.elyaTyping = false;
       state.elyaMessages.push({ sender: 'elya', text: getElyaFallback(text), time: rt });
       _updateElyaMessages();
+      if (window._mannyelaCloud && window._mannyelaCloud.saveElya) window._mannyelaCloud.saveElya();
     });
   }
 
@@ -6637,7 +6705,25 @@ function buildElyaSystemPrompt() {
 
   // ─── helpers booking ─────────────────────────────────────────────────
   function panierTotal()  { return bookingState.panier.reduce((s,i)=>s+(Number(i.prix)||0),0); }
-  function panierAcompte(){ return bookingState.panier.reduce((s,i)=>s+(Number(i.acompte)||0),0); }
+  // Acompte à 2 niveaux : moins de 100 € → 20 € ; 100 € et plus → 30 €
+  function panierAcompte(){ var t = panierTotal(); return t <= 0 ? 0 : (t >= 100 ? 30 : 20); }
+
+  /* ═══ LIENS DE PAIEMENT DES ACOMPTES (Stripe, paiement unique) ═══
+     d20 = acompte 20 € · d30 = acompte 30 € */
+  window.DEPOSIT_PAYMENT_LINKS = {
+    d20: 'https://buy.stripe.com/5kQaEP24hc2530g5fUeIw07',
+    d30: 'https://buy.stripe.com/cNicMX24h3vz1WcdMqeIw08'
+  };
+  function payerAcompteStripe(amount) {
+    var links = window.DEPOSIT_PAYMENT_LINKS || {};
+    var url = (amount >= 30) ? links.d30 : links.d20;
+    if (url && /^https?:\/\//.test(url)) {
+      showNotify('Redirection vers le paiement de l\'acompte…');
+      window.location.href = url;
+    } else {
+      showNotify('Le paiement de l\'acompte sera disponible très bientôt ✦');
+    }
+  }
   function discountRate() { const p=PLANS[state.plan]; return p?p.discount:0; }
   function panierTotalNet(){ const t=panierTotal(); return Math.round(t*(1-discountRate())*100)/100; }
 
@@ -7086,6 +7172,19 @@ function buildElyaSystemPrompt() {
       acompte:     panierAcompte(),
       status:      'Confirmé'
     });
+    // Enregistrer aussi dans le cloud → visible côté experte
+    try {
+      var _c = window._supabaseClient || window.supabase;
+      if (_c && _c.from && state.user) {
+        _c.from('rendez_vous').insert({
+          cliente_email: state.user.email, cliente_nom: state.user.name,
+          experte_email: (expert.email || '').toLowerCase(), experte_nom: expertName.trim(),
+          date: bookingState.selectedDate, heure: bookingState.selectedSlot,
+          prestation: bookingState.panier.map(function (p) { return p.nom; }).join(', '),
+          prix: panierTotalNet(), statut: 'confirmé', source: 'cliente'
+        }).then(function () {}, function () {});
+      }
+    } catch (e) {}
     // Sync next RDV in profile
     if (state.nextRDV) { state.lastRDV = state.nextRDV; }
     state.nextRDV = {
@@ -7261,12 +7360,13 @@ function buildElyaSystemPrompt() {
           <p class="font-cinzel" style="font-size:9px;letter-spacing:0.3em;color:rgba(220,180,120,0.6);text-transform:uppercase;margin-bottom:0.4rem;">Acompte à régler</p>
           <p class="font-cinzel" style="font-size:2rem;color:rgba(220,180,120,0.95);">${acp} €</p>
           <p style="font-size:9px;color:rgba(245,245,220,0.3);margin-top:0.35rem;line-height:1.7;">Solde de ${(tot-acp).toFixed(2)} € réglé en séance · Remboursé intégralement si annulation > 48h</p>
-          <button onclick="showNotify('Paiement Stripe bientôt disponible ✦')"
+          <button onclick="payerAcompteStripe(${acp})"
             style="margin-top:1rem;width:100%;font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.25em;text-transform:uppercase;padding:0.9rem;
                    border:1px solid rgba(220,180,120,0.45);color:rgba(220,180,120,0.9);background:rgba(220,180,120,0.06);cursor:pointer;transition:all .3s;"
             onmouseover="this.style.background='rgba(220,180,120,0.12)'" onmouseout="this.style.background='rgba(220,180,120,0.06)'">
             Payer l’acompte de ${acp} € →
           </button>
+          <p style="font-size:9px;color:rgba(245,245,220,0.4);margin-top:0.6rem;line-height:1.7;font-style:italic;">Un acompte de ${acp} €, déduit de votre prestation, confirme votre rendez-vous rien que pour vous. ✦</p>
         </div>
 
         <div style="display:flex;gap:0.75rem;justify-content:center;">
@@ -9188,6 +9288,14 @@ function buildElyaSystemPrompt() {
       } catch (e) { console.warn('Fiche save:', e && e.message); }
     }
 
+    // ── CONVERSATION ELYA (synchronisée entre appareils) ───────────────────
+    async function saveElya() {
+      var u = await _sbUser(); if (!u) return;
+      try {
+        await _client().from('elya_chats').upsert({ id: u.id, messages: (state.elyaMessages || []), updated_at: new Date().toISOString() });
+      } catch (e) { console.warn('Elya save:', e && e.message); }
+    }
+
     // ── ENREGISTRER LE MEMBRE (pour le tableau de bord admin) ───────────────
     async function registerMember() {
       var u = await _sbUser(); if (!u) return;
@@ -9237,6 +9345,22 @@ function buildElyaSystemPrompt() {
         var pr = await c.from('profiles').select('photo').eq('id', u.id).maybeSingle();
         if (pr && pr.data && pr.data.photo && state.user) state.user.photo = pr.data.photo;
       } catch (e) { console.warn('Cloud profile load:', e && e.message); }
+      // Conversation ELYA (synchronisée)
+      try {
+        var ec = await c.from('elya_chats').select('messages').eq('id', u.id).maybeSingle();
+        if (ec && ec.data && Array.isArray(ec.data.messages) && ec.data.messages.length) state.elyaMessages = ec.data.messages;
+      } catch (e) { console.warn('Cloud elya load:', e && e.message); }
+      // Rendez-vous (ajoutés par l'experte, visibles sur le compte cliente)
+      try {
+        var rv = await c.from('rendez_vous').select('*').eq('cliente_email', u.email).order('date', { ascending: true });
+        if (rv && rv.data && rv.data.length) {
+          var _today = new Date().toISOString().split('T')[0];
+          var up = rv.data.filter(function (r) { return (r.date || '') >= _today && r.statut !== 'annulé'; });
+          var pa = rv.data.filter(function (r) { return (r.date || '') < _today; });
+          if (up.length) state.nextRDV = { date: up[0].date, time: up[0].heure || '', expert: up[0].experte_nom || '' };
+          if (pa.length) { var _l = pa[pa.length - 1]; state.lastRDV = { date: _l.date, expert: _l.experte_nom || '' }; }
+        }
+      } catch (e) { console.warn('Cloud rdv load:', e && e.message); }
       // Analyse ELYA en arrière-plan : met à jour la fiche partagée avec l'experte.
       saveFiche();
       _refresh();
@@ -9374,7 +9498,7 @@ function buildElyaSystemPrompt() {
     }
 
     // Exposition globale
-    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts, saveContent: saveContent, deleteContent: deleteContent, updateContent: updateContent, loadContent: loadContent, joinChallenge: joinChallenge, setChallengeProgress: setChallengeProgress, loadMyParticipations: loadMyParticipations, loadAllParticipants: loadAllParticipants };
+    window._mannyelaCloud = { saveJournal: saveJournal, savePhoto: savePhoto, savePost: savePost, deletePost: deletePost, saveFiche: saveFiche, saveElya: saveElya, loadAll: loadAll, registerMember: registerMember, loadMembers: loadMembers, loadExperts: loadExperts, saveContent: saveContent, deleteContent: deleteContent, updateContent: updateContent, loadContent: loadContent, joinChallenge: joinChallenge, setChallengeProgress: setChallengeProgress, loadMyParticipations: loadMyParticipations, loadAllParticipants: loadAllParticipants };
 
     // Capturer les posts de démo dès que possible
     document.addEventListener('DOMContentLoaded', function () { setTimeout(_seedFeed, 300); });
@@ -9395,7 +9519,7 @@ function buildElyaSystemPrompt() {
   </script>
 
   <!-- Marqueur de version — confirme que le nouveau fichier est bien en ligne. -->
-  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v21 · 24-06</div>
+  <div id="mannyela-version" style="position:fixed;bottom:4px;left:6px;font-size:9px;color:rgba(196,149,106,0.5);font-family:'Cinzel',serif;letter-spacing:0.12em;z-index:99999;pointer-events:none;">✦ v30 · 24-06</div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
        MANNYELA LOGIN — Connexion "local-first" (priorité aux comptes intégrés)
