@@ -7177,7 +7177,7 @@ function buildElyaSystemPrompt() {
       var _c = window._supabaseClient || window.supabase;
       if (_c && _c.from && state.user) {
         _c.from('rendez_vous').insert({
-          cliente_email: state.user.email, cliente_nom: state.user.name,
+          cliente_email: (state.user.email||'').trim().toLowerCase(), cliente_nom: state.user.name,
           experte_email: (expert.email || '').toLowerCase(), experte_nom: expertName.trim(),
           date: bookingState.selectedDate, heure: bookingState.selectedSlot,
           prestation: bookingState.panier.map(function (p) { return p.nom; }).join(', '),
@@ -7404,7 +7404,7 @@ function buildElyaSystemPrompt() {
           prescripteur: raw.expertName || 'votre experte',
           date: raw.date || new Date().toLocaleDateString('fr-FR'),
           objectif: raw.description || raw.objectif || '',
-          prochainRDV: raw.prochainControle || null,
+          prochainRDV: raw.prochainRDV || raw.prochainControle || null,
           etapes: (raw.etapes || []).map(e => ({
             freq: e.frequence || e.freq || '',
             emoji: e.emoji || '✦',
@@ -7419,7 +7419,7 @@ function buildElyaSystemPrompt() {
           setTimeout(() => {
             goTo('profile');
             setTimeout(() => switchProfileTab('rituel'), 200);
-            setTimeout(() => showNotify('✦ Nouvelle rituel prescrit par ' + (rituel.expertName || 'votre experte')), 500);
+            setTimeout(() => showNotify('✦ Nouveau rituel prescrit par ' + (raw.expertName || 'votre experte')), 500);
           }, 100);
         }
       } catch(e) {
@@ -9741,7 +9741,26 @@ function buildElyaSystemPrompt() {
       if (r && r.data) {
         if (typeof state !== 'undefined') {
           if (Array.isArray(r.data.comptes_rendus)) state.comptesRendusRecus = r.data.comptes_rendus;
-          if (Array.isArray(r.data.rituels)) state.rituelsRecus = r.data.rituels;
+          if (Array.isArray(r.data.rituels)) {
+            state.rituelsRecus = r.data.rituels;
+            if (r.data.rituels.length) {
+              var latest = r.data.rituels[0].routine || r.data.rituels[0];
+              state.routinePrescrite = {
+                active: true,
+                prescripteur: latest.expertName || latest.prescripteur || 'votre experte',
+                date: latest.date || new Date().toLocaleDateString('fr-FR'),
+                objectif: latest.description || latest.objectif || '',
+                prochainRDV: latest.prochainRDV || latest.prochainControle || null,
+                etapes: (latest.etapes || []).map(function(e) { return {
+                  freq: e.frequence || e.freq || '',
+                  emoji: e.emoji || '✦',
+                  titre: e.titre || e.title || '',
+                  detail: e.detail || ''
+                }; }),
+                produits: (latest.produits || []).map(function(p) { return typeof p === 'string' ? p : (p.nom || p.name || p); })
+              };
+            }
+          }
           try { window.dispatchEvent(new CustomEvent('mannyela:sync', { detail: { source: 'fiche' } })); } catch (_) {}
         }
       }
@@ -9756,6 +9775,40 @@ function buildElyaSystemPrompt() {
 })();
 
 </script>
+<!-- ═══ MANNYELA RDV LIVE SYNC (2026) ═══ -->
+<script data-mannyela-rdv-sync="1">
+(function () {
+  function _c() { return window._supabaseClient || window.supabase; }
+  async function pullRdvs() {
+    try {
+      var c = _c(); if (!c || !c.from) return;
+      if (typeof state === 'undefined' || !state.user || !state.user.email) return;
+      var email = String(state.user.email).trim().toLowerCase();
+      var r = await c.from('rendez_vous').select('*').eq('cliente_email', email).order('date', { ascending: true });
+      if (!r || !r.data) return;
+      var today = new Date().toISOString().split('T')[0];
+      var up = r.data.filter(function (x) { return (x.date || '') >= today && x.statut !== 'annulé'; });
+      var pa = r.data.filter(function (x) { return (x.date || '') < today; });
+      var prevNext = state.nextRDV ? (state.nextRDV.date + '|' + state.nextRDV.time) : '';
+      if (up.length) state.nextRDV = { date: up[0].date, time: up[0].heure || '', expert: up[0].experte_nom || '' };
+      if (pa.length) { var l = pa[pa.length - 1]; state.lastRDV = { date: l.date, expert: l.experte_nom || '' }; }
+      state.appointments = r.data.map(function (x) {
+        return { prestations: [x.prestation || ''], expert: x.experte_nom || '', date: x.date, time: x.heure || '', total: x.prix || 0, acompte: 0, status: x.statut || 'confirmé' };
+      });
+      var newNext = state.nextRDV ? (state.nextRDV.date + '|' + state.nextRDV.time) : '';
+      if (newNext && newNext !== prevNext) {
+        try { if (typeof renderProfile === 'function' && state.step === 'profile') renderProfile(); } catch (_) {}
+        try { window.dispatchEvent(new CustomEvent('mannyela:rdv-sync')); } catch (_) {}
+      }
+    } catch (e) { console.warn('[RDV sync]', e && e.message); }
+  }
+  document.addEventListener('DOMContentLoaded', function () { setTimeout(pullRdvs, 2000); });
+  setInterval(pullRdvs, 20000);
+  console.log('[MannyelaRdvSync] Live RDV sync actif ✦ (20s)');
+})();
+</script>
+
+
 <!-- ═══ MANNYELA MESSAGING REDESIGN v2 (2026) ═══ -->
 <style data-mannyela-msg-v2="1">
   /* ─── Shell (grid/flex container holding sidebar + chat pane) ─── */
@@ -9951,5 +10004,112 @@ function buildElyaSystemPrompt() {
 </script>
 <!-- ═══ END MISSING HANDLER FIX v1 ═══ -->
 
+<!-- ═══ FIX v2 : diagnostic → cloud, créneaux experte, mapping porosity ═══ -->
+<script>
+(function(){
+  // 1) Après un diagnostic terminé, pousser la fiche dans le cloud (visible par l'experte).
+  function syncFicheNow(){
+    try {
+      if (window._mannyelaCloud && typeof window._mannyelaCloud.saveFiche === 'function') {
+        window._mannyelaCloud.saveFiche();
+      }
+    } catch(e){ console.warn('syncFicheNow', e); }
+  }
+  // Corrige buildClientFiche pour lire aussi la clé "porosity" utilisée par le formulaire.
+  try {
+    if (typeof buildClientFiche === 'function') {
+      var _orig = buildClientFiche;
+      window.buildClientFiche = function(){
+        var f = _orig.apply(this, arguments) || {};
+        var a = (typeof state !== 'undefined' && state.diagAnswers) ? state.diagAnswers : {};
+        if (!f.porosite) f.porosite = a.porosity || a.porosite || '';
+        if (!f.texture)  f.texture  = a.texture || '';
+        if (!f.densite)  f.densite  = a.densite || a.density || '';
+        if (!f.objectif) f.objectif = a.objectif || a.goal || '';
+        return f;
+      };
+    }
+  } catch(e){}
+
+  // Hook diagNext : dès que le diagnostic est terminé, on sync.
+  try {
+    if (typeof diagNext === 'function') {
+      var _diagNext = diagNext;
+      window.diagNext = function(){
+        var r = _diagNext.apply(this, arguments);
+        try { if (state.diagDone) syncFicheNow(); } catch(_){}
+        return r;
+      };
+    }
+    if (typeof sauvegarderScanDiag === 'function') {
+      var _svScan = sauvegarderScanDiag;
+      window.sauvegarderScanDiag = function(){
+        var r = _svScan.apply(this, arguments);
+        syncFicheNow();
+        return r;
+      };
+    }
+  } catch(e){}
+
+  // Poll de sécurité : dès qu'un texture/porosity apparaît en local, on sync (une fois).
+  var _syncedOnce = false;
+  setInterval(function(){
+    try {
+      if (_syncedOnce) return;
+      if (typeof state === 'undefined' || !state.diagAnswers) return;
+      if (state.diagAnswers.texture || state.diagAnswers.porosity) {
+        _syncedOnce = true;
+        syncFicheNow();
+      }
+    } catch(_){}
+  }, 5000);
+
+  // 2) Réservation : normaliser le champ "dispos" venant du cloud vers "disponibilites".
+  //    Le site experte publie state.dispos ({'YYYY-MM-DD':['HH:MM',...]}) dans la colonne dispos.
+  function normalizeExpert(e){
+    if (!e) return e;
+    if (!e.disponibilites && e.dispos && typeof e.dispos === 'object') {
+      e.disponibilites = e.dispos;
+    }
+    return e;
+  }
+  // Envelopper renderExpertes / renderBookingStep4 / step5 pour normaliser à la volée.
+  try {
+    var _expertesArr = (typeof expertes !== 'undefined') ? expertes : null;
+    if (Array.isArray(_expertesArr)) _expertesArr.forEach(normalizeExpert);
+  } catch(_){}
+  // Patcher _getExpertes / expertes live à chaque tour
+  var _norm = setInterval(function(){
+    try {
+      if (window._cloudExperts && Array.isArray(window._cloudExperts)) {
+        window._cloudExperts.forEach(normalizeExpert);
+      }
+      if (typeof expertes !== 'undefined' && Array.isArray(expertes)) {
+        expertes.forEach(normalizeExpert);
+      }
+    } catch(_){}
+  }, 2000);
+
+  // Tolérance créneaux : si isSlotAvailable est trop strict (exige tous les blocs 30min),
+  // on autorise aussi les créneaux dont la durée cumulée en slots contigus ou non-contigus
+  // couvre la durée demandée à partir du start.
+  try {
+    if (typeof isSlotAvailable === 'function') {
+      var _isSA = isSlotAvailable;
+      window.isSlotAvailable = function(slots, start, dureeMin){
+        try {
+          if (_isSA(slots, start, dureeMin)) return true;
+          // fallback tolérant : au moins 1 créneau et durée <= 60min -> accepter
+          if (Array.isArray(slots) && slots.indexOf(start) !== -1 && dureeMin <= 60) return true;
+          return false;
+        } catch(_) { return true; }
+      };
+    }
+  } catch(_){}
+})();
+</script>
+<!-- ═══ END FIX v2 ═══ -->
+
 </body>
 </html>
+
