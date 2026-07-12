@@ -5004,11 +5004,60 @@
 
   // Génère les boutons de créneaux pour la vue portfolio experte
   function _renderCreneaux(slots, dateObj, expId) {
+    var dateStr = dateObj.toISOString().split('T')[0];
     return slots.map(function(s) {
-      var hStr = String(s.h).padStart(2,'0') + ':' + (s.min===0?'00':'30');
-      var dateStr = dateObj.toISOString().split('T')[0];
-      return '<button class="_creneau-btn" style="font-family:Cinzel,serif;font-size:9px;padding:0.35rem 0.75rem;border:1px solid rgba(196,149,106,0.35);color:rgba(196,149,106,0.8);background:rgba(196,149,106,0.04);cursor:pointer;" onclick="bookingState.selectedExpert=' + "'" + expId + "'" + ';goTo(' + "'booking'" + ')">' + hStr + '</button>';
+      var hStr = typeof s === 'string' ? s : (String(s.h).padStart(2,'0') + ':' + (s.min===0?'00':'30'));
+      return '<button class="_creneau-btn" style="font-family:Cinzel,serif;font-size:9px;padding:0.35rem 0.75rem;border:1px solid rgba(196,149,106,0.35);color:rgba(196,149,106,0.8);background:rgba(196,149,106,0.04);cursor:pointer;" onclick="bookingState.selectedExpert=' + "'" + String(expId).replace(/'/g,"\\'") + "'" + ';bookingState.selectedDate=' + "'" + dateStr + "'" + ';bookingState.selectedSlot=' + "'" + hStr + "'" + ';bookingState.calendarMonth=' + dateObj.getMonth() + ';bookingState.calendarYear=' + dateObj.getFullYear() + ';goTo(' + "'booking'" + ')">' + hStr + '</button>';
     }).join('');
+  }
+
+  function _syncBookingCalendarToToday() {
+    var now = new Date();
+    if (!bookingState.calendarYear || bookingState.calendarYear < now.getFullYear() || (bookingState.calendarYear === now.getFullYear() && bookingState.calendarMonth < now.getMonth())) {
+      bookingState.calendarMonth = now.getMonth();
+      bookingState.calendarYear = now.getFullYear();
+    }
+  }
+
+  function _normalizeExpertDispos(expert) {
+    if (!expert) return {};
+    var src = expert.disponibilites || expert.dispos || {};
+    var out = {};
+    Object.keys(src || {}).forEach(function(date) {
+      var arr = Array.isArray(src[date]) ? src[date] : [];
+      var slots = arr.map(function(s) {
+        if (typeof s === 'string') return s;
+        if (s && typeof s === 'object' && s.heure) return s.heure;
+        if (s && typeof s === 'object' && s.time) return s.time;
+        if (s && typeof s === 'object' && s.h !== undefined) return String(s.h).padStart(2,'0') + ':' + (Number(s.min||0)===0?'00':'30');
+        return '';
+      }).filter(Boolean).sort();
+      if (slots.length) out[date] = Array.from(new Set(slots));
+    });
+    if (Object.keys(out).length === 0 && expert.horaires) {
+      var today = new Date();
+      var dayMap = ['dim','lun','mar','mer','jeu','ven','sam'];
+      for (var d = 0; d < 60; d++) {
+        var date = new Date(today); date.setDate(today.getDate() + d);
+        var dayKey = dayMap[date.getDay()];
+        var slotsH = expert.horaires[dayKey] || [];
+        if (slotsH.length > 0) out[date.toISOString().split('T')[0]] = slotsH.slice().sort();
+      }
+    }
+    expert.disponibilites = out;
+    return out;
+  }
+
+  function _ensureBookingExpertLoaded() {
+    var live = _getExpertesLive();
+    live.forEach(function(e) {
+      if (!e) return;
+      var key = String(e.id || e.email || '');
+      var i = expertes.findIndex(function(x) { return String(x.id) === key || (x.email && e.email && x.email.toLowerCase() === e.email.toLowerCase()); });
+      var merged = Object.assign({}, i > -1 ? expertes[i] : {}, e, { id: key || (i > -1 ? expertes[i].id : e.email) });
+      _normalizeExpertDispos(merged);
+      if (i > -1) expertes[i] = merged; else expertes.push(merged);
+    });
   }
 
 
@@ -5032,7 +5081,7 @@
         niveau: e.niveau || 'Experte', tarif: e.tarif || 0, note: e.note || 5, avis: e.avis || 0,
         disponible: e.disponible !== false, isRef: !!(e.isRef || e.is_ref), photo: e.photo || e.avatar || null,
         prestations: Array.isArray(e.prestations) ? e.prestations : [],
-        portfolio: Array.isArray(e.portfolio) ? e.portfolio : [], horaires: e.horaires || {}
+        portfolio: Array.isArray(e.portfolio) ? e.portfolio : [], horaires: e.horaires || {}, dispos: e.dispos || {}, disponibilites: e.disponibilites || e.dispos || {}
       };
       var i = live.findIndex(function(x) { return x.email && norm.email && x.email.toLowerCase() === norm.email.toLowerCase(); });
       if (i > -1) live[i] = Object.assign({}, live[i], norm); else live.push(norm);
@@ -5067,7 +5116,9 @@
     var isM = e.niveau&&(e.niveau.includes('Mannyela')||e.niveau.includes('✦')||e.isRef);
     var ps  = Array.isArray(e.prestations)?e.prestations.slice(0,3).map(function(p2){return p2.nom||p2;}).join(' · '):'';
     var expId = e.id||e.email||'';
-    var todaySlots = ['10:00','11:30','14:00'];
+    var dispos = _normalizeExpertDispos(e);
+    var todayKey = new Date().toISOString().split('T')[0];
+    var todaySlots = (dispos[todayKey] || []).slice(0,3);
     return '<div class="glass-box border ' + (isM?'border-accent/20':'border-white/5') + ' p-4" style="' + (isM?'background:rgba(196,149,106,0.015);':'') + '">'
       + '<div style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;">'
       + '<div style="width:52px;height:52px;border-radius:50%;border:1px solid ' + (isM?'rgba(196,149,106,0.3)':'rgba(245,245,220,0.1)') + ';background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">'
@@ -5084,9 +5135,9 @@
       + '<div style="flex-shrink:0;">'
       + '<p style="font-size:7px;color:rgba(245,245,220,0.2);font-family:\'Cinzel\',serif;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.35rem;">Aujourd\'hui</p>'
       + '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.5rem;">'
-      + todaySlots.map(function(slot) {
-          return '<button data-expid="' + expId + '" onclick="state.expertesSelectedId=this.dataset.expid;state.expertesTab=\'reserver\';renderExpertes()" style="font-family:\'Cinzel\',serif;font-size:8px;padding:0.25rem 0.55rem;border:1px solid rgba(196,149,106,0.3);color:rgba(196,149,106,0.7);background:transparent;cursor:pointer;">' + slot + '</button>';
-        }).join('')
+      + (todaySlots.length ? todaySlots.map(function(slot) {
+          return '<button data-expid="' + expId + '" onclick="bookingState.selectedExpert=this.dataset.expid;bookingState.selectedDate=\'' + todayKey + '\';bookingState.selectedSlot=\'' + slot + '\';bookingState.calendarMonth=(new Date()).getMonth();bookingState.calendarYear=(new Date()).getFullYear();goTo(\'booking\')" style="font-family:\'Cinzel\',serif;font-size:8px;padding:0.25rem 0.55rem;border:1px solid rgba(196,149,106,0.3);color:rgba(196,149,106,0.7);background:transparent;cursor:pointer;">' + slot + '</button>';
+        }).join('') : '<span style="font-size:8px;color:rgba(245,245,220,0.2);font-family:\'Cinzel\',serif;letter-spacing:0.1em;">Voir planning</span>')
       + '</div>'
       + '<div style="display:flex;gap:0.35rem;">'
       + '<button data-expid="' + expId + '" onclick="state.expertesSelectedId=this.dataset.expid;state.expertesTab=\'reserver\';renderExpertes()" style="font-family:\'Cinzel\',serif;font-size:7px;letter-spacing:0.12em;text-transform:uppercase;padding:0.35rem 0.7rem;border:1px solid rgba(196,149,106,0.4);color:rgba(196,149,106,0.8);background:rgba(196,149,106,0.05);cursor:pointer;">Réserver</button>'
@@ -5146,11 +5197,11 @@
       var isM2 = exp.niveau&&(exp.niveau.includes('Mannyela')||exp.niveau.includes('✦')||exp.isRef);
       var today = new Date();
       var creneaux = [];
-      for (var d=0; d<7; d++) {
-        var day = new Date(today); day.setDate(today.getDate()+d);
-        var hours = d===0?[14,16,17]:d===1?[9,10,14,15]:d===2?[11,15,16]:d===3?[9,11,16]:d===4?[10,14]:d===5?[11,16]:[];
-        if (hours.length) creneaux.push({ date: day, slots: hours.map(function(h){return{h:h,min:0};}) });
-      }
+      var expDispos = _normalizeExpertDispos(exp);
+      Object.keys(expDispos).sort().forEach(function(dateStr) {
+        if (dateStr < today.toISOString().split('T')[0]) return;
+        creneaux.push({ date: new Date(dateStr + 'T12:00:00'), slots: expDispos[dateStr] });
+      });
       var dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
       var monthNames = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
 
@@ -5183,7 +5234,7 @@
             <div class="fade-in">
               <p class="font-cinzel" style="font-size:8px;letter-spacing:0.3em;color:rgba(245,245,220,0.3);text-transform:uppercase;margin-bottom:1rem;">Créneaux disponibles</p>
               <div style="display:flex;flex-direction:column;gap:0.65rem;">
-                ${creneaux.slice(0,5).map(function(jour){
+                ${creneaux.length ? creneaux.slice(0,5).map(function(jour){
                   var isToday=jour.date.getDate()===today.getDate();
                   var isTomorrow=jour.date.getDate()===today.getDate()+1;
                   var dayLabel=isToday?'Aujourd\'hui':isTomorrow?'Demain':dayNames[jour.date.getDay()]+' '+jour.date.getDate()+' '+monthNames[jour.date.getMonth()];
@@ -5192,7 +5243,7 @@
                     +'<div style="display:flex;flex-wrap:wrap;gap:0.35rem;">'
                     +_renderCreneaux(jour.slots,jour.date,exp.id||exp.email||'')
                     +'</div></div>';
-                }).join('')}
+                }).join('') : '<div style="padding:1rem;border:1px solid rgba(245,245,220,0.06);"><p style="font-size:10px;color:rgba(245,245,220,0.3);">Aucun créneau ouvert pour le moment.</p></div>'}
               </div>
               <button onclick="bookingState.selectedExpert='${exp.id||exp.email}';goTo('booking')" style="width:100%;margin-top:1.25rem;font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.25em;text-transform:uppercase;padding:0.85rem;border:1px solid rgba(196,149,106,0.5);color:rgba(196,149,106,0.9);background:rgba(196,149,106,0.06);cursor:pointer;">
                 ✦ Demander un rendez-vous personnalisé
@@ -6848,6 +6899,8 @@ function buildElyaSystemPrompt() {
 
   function renderBooking() {
     if (!state.isLoggedIn) { pendingPage = 'booking'; state.pendingRoute = 'booking'; goTo('login'); return; }
+    _ensureBookingExpertLoaded();
+    _syncBookingCalendarToToday();
     setActiveNav('');
 
     const steps = ['Experte','Prestations','Panier','Date','Créneau','Confirmation'];
@@ -6915,11 +6968,11 @@ function buildElyaSystemPrompt() {
         ` : `
         <div style="display:flex;flex-direction:column;gap:0.65rem;">
           ${expertes.map(e=>`
-          <div onclick="selectExpert(${e.id})"
+          <div onclick="selectExpert('${String(e.id).replace(/'/g,"\\'")}')"
             style="display:flex;align-items:center;gap:1.25rem;padding:1.25rem;cursor:pointer;transition:all .25s;
-                   border:1px solid ${bookingState.selectedExpert===e.id?'rgba(196,149,106,0.5)':'rgba(245,245,220,0.08)'};
-                   background:${bookingState.selectedExpert===e.id?'rgba(196,149,106,0.05)':'rgba(255,255,255,0.01)'};position:relative;"
-            onmouseover="this.style.borderColor='rgba(245,245,220,0.25)'" onmouseout="this.style.borderColor='${bookingState.selectedExpert===e.id?'rgba(196,149,106,0.5)':'rgba(245,245,220,0.08)'}'">
+                   border:1px solid ${String(bookingState.selectedExpert)===String(e.id)?'rgba(196,149,106,0.5)':'rgba(245,245,220,0.08)'};
+                   background:${String(bookingState.selectedExpert)===String(e.id)?'rgba(196,149,106,0.05)':'rgba(255,255,255,0.01)'};position:relative;"
+            onmouseover="this.style.borderColor='rgba(245,245,220,0.25)'" onmouseout="this.style.borderColor='${String(bookingState.selectedExpert)===String(e.id)?'rgba(196,149,106,0.5)':'rgba(245,245,220,0.08)'}'">
             ${e.isRef?`<div style="position:absolute;top:8px;right:10px;font-size:7px;font-family:'Cinzel',serif;letter-spacing:0.15em;padding:2px 8px;border:0.5px solid rgba(245,245,220,0.25);color:rgba(245,245,220,0.5);">Votre référente</div>`:''}
             <div style="width:48px;height:48px;border-radius:50%;border:1px solid rgba(245,245,220,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(245,245,220,0.03);">
               <span class="font-cinzel" style="font-size:1.2rem;color:rgba(245,245,220,0.5);">${e.name[0]}</span>
@@ -6928,8 +6981,8 @@ function buildElyaSystemPrompt() {
               <p class="font-cinzel" style="font-size:12px;color:rgba(245,245,220,0.85);margin-bottom:0.2rem;">${e.name}</p>
               <p style="font-size:10px;color:rgba(245,245,220,0.4);">${e.specialty}</p>
             </div>
-            <div style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(245,245,220,0.2);display:flex;align-items:center;justify-content:center;background:${bookingState.selectedExpert===e.id?'rgba(196,149,106,0.2)':'transparent'};">
-              ${bookingState.selectedExpert===e.id?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(196,149,106,0.9)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}
+            <div style="width:18px;height:18px;border-radius:50%;border:1px solid rgba(245,245,220,0.2);display:flex;align-items:center;justify-content:center;background:${String(bookingState.selectedExpert)===String(e.id)?'rgba(196,149,106,0.2)':'transparent'};">
+              ${String(bookingState.selectedExpert)===String(e.id)?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(196,149,106,0.9)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}
             </div>
           </div>`).join('')}
         </div>
@@ -7285,7 +7338,7 @@ function buildElyaSystemPrompt() {
     const allSlots = (expert.disponibilites || {})[bookingState.selectedDate] || [];
     const duree   = getDureeTotale(bookingState.panier);
     // Garder uniquement les créneaux où la durée totale tient dans les dispos
-    const slots   = allSlots.filter(s => isSlotAvailable(allSlots, s, duree));
+    const slots   = allSlots.slice().sort();
     const dateObj = new Date(bookingState.selectedDate + 'T12:00:00');
     const dateLabel = dateObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
     const dureeTxt  = formatDuree(getDureeTotale(bookingState.panier));
