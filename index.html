@@ -9756,5 +9756,200 @@ function buildElyaSystemPrompt() {
 })();
 
 </script>
+<!-- ═══ MANNYELA MESSAGING REDESIGN v2 (2026) ═══ -->
+<style data-mannyela-msg-v2="1">
+  /* ─── Shell (grid/flex container holding sidebar + chat pane) ─── */
+  div:has(> div > #conv-scroll),
+  div:has(> div > #msg-scroll){
+    border: 1px solid rgba(196,149,106,0.18) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.15)) !important;
+    box-shadow: 0 10px 40px -20px rgba(0,0,0,0.5);
+  }
+  /* Sidebar tint */
+  div:has(> div > #conv-scroll) > div:first-child,
+  div:has(> div > #msg-scroll) > div:first-child{
+    background: rgba(0,0,0,0.22) !important;
+    border-right: 1px solid rgba(245,245,220,0.05) !important;
+  }
+
+  /* ─── Bubbles ─── */
+  #conv-scroll, #msg-scroll{
+    padding: 1.25rem 1rem !important;
+    gap: 0.55rem !important;
+    scroll-behavior: smooth;
+  }
+  .chat-bubble,
+  #conv-scroll > div > div,
+  #msg-scroll > div > div{
+    max-width: 78% !important;
+    padding: 0.7rem 1rem !important;
+    border-radius: 20px !important;
+    font-size: 13.5px !important;
+    line-height: 1.55 !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    word-wrap: break-word;
+  }
+  .chat-bubble p, #conv-scroll p, #msg-scroll p { font-size: inherit !important; }
+
+  /* User / expert-sent bubble (right-aligned) — gold gradient */
+  .chat-bubble.user,
+  #conv-scroll > div[style*="flex-end"] > div,
+  #msg-scroll > div[style*="flex-end"] > div{
+    background: linear-gradient(135deg, rgba(196,149,106,0.42), rgba(196,149,106,0.22)) !important;
+    border: 1px solid rgba(196,149,106,0.5) !important;
+    color: rgba(255,250,240,0.98) !important;
+    border-bottom-right-radius: 6px !important;
+  }
+  /* Received bubble (left-aligned) — soft cream on dark */
+  .chat-bubble.expert,
+  #conv-scroll > div[style*="flex-start"] > div,
+  #msg-scroll > div[style*="flex-start"] > div{
+    background: rgba(245,245,220,0.06) !important;
+    border: 1px solid rgba(245,245,220,0.13) !important;
+    color: rgba(245,245,220,0.9) !important;
+    border-bottom-left-radius: 6px !important;
+  }
+
+  /* ─── Composer row (parent of #msg-input) ─── */
+  div:has(> #msg-input){
+    padding: 0.85rem 1rem !important;
+    background: rgba(0,0,0,0.28) !important;
+    gap: 0.6rem !important;
+    align-items: flex-end !important;
+    border-top: 1px solid rgba(245,245,220,0.05) !important;
+  }
+  #msg-input, #new-msg-text{
+    min-height: 56px !important;
+    max-height: 160px !important;
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    padding: 0.85rem 1rem !important;
+    border-radius: 16px !important;
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(245,245,220,0.15) !important;
+    color: rgba(245,245,220,0.95) !important;
+    resize: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: 'Montserrat', sans-serif !important;
+  }
+  #msg-input::placeholder, #new-msg-text::placeholder{
+    color: rgba(245,245,220,0.35) !important; font-style: italic;
+  }
+  #msg-input:focus, #new-msg-text:focus{
+    border-color: rgba(196,149,106,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(196,149,106,0.12) !important;
+    outline: none !important;
+  }
+
+  /* Circular gold send button */
+  div:has(> #msg-input) > button{
+    height: 46px !important; width: 46px !important; min-width: 46px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, rgba(212,170,120,1), rgba(180,135,85,1)) !important;
+    border: none !important;
+    color: #1a1a1a !important;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important;
+    box-shadow: 0 6px 18px rgba(196,149,106,0.35);
+    transition: transform .15s, box-shadow .15s;
+  }
+  div:has(> #msg-input) > button:hover{
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 8px 22px rgba(196,149,106,0.5);
+  }
+  div:has(> #msg-input) > button svg,
+  div:has(> #msg-input) > button i { color: #1a1a1a !important; width:16px !important; height:16px !important; }
+
+  /* ─── MOBILE : stack vertically, full-height, comfortable ─── */
+  @media (max-width: 768px){
+    div:has(> div > #conv-scroll),
+    div:has(> div > #msg-scroll){
+      display: flex !important;
+      flex-direction: column !important;
+      grid-template-columns: 1fr !important;
+      min-height: calc(100vh - 260px) !important;
+      border-radius: 12px !important;
+    }
+    div:has(> div > #conv-scroll) > div:first-child,
+    div:has(> div > #msg-scroll) > div:first-child{
+      width: 100% !important;
+      max-height: 34vh;
+      border-right: 0 !important;
+      border-bottom: 1px solid rgba(245,245,220,0.05) !important;
+    }
+    div:has(> div > #conv-scroll) > div:last-child,
+    div:has(> div > #msg-scroll) > div:last-child{ flex: 1 1 auto !important; min-height: 0 !important; }
+    #conv-scroll, #msg-scroll{
+      max-height: none !important;
+      min-height: 42vh;
+      padding: 1rem 0.75rem !important;
+    }
+    .chat-bubble,
+    #conv-scroll > div > div,
+    #msg-scroll > div > div{ max-width: 85% !important; font-size: 14px !important; }
+    #msg-input, #new-msg-text{
+      min-height: 52px !important; font-size: 15px !important;
+      padding: 0.8rem 0.9rem !important;
+    }
+    div:has(> #msg-input){ padding: 0.75rem 0.75rem !important; }
+    div:has(> #msg-input) > button{ height: 48px !important; width: 48px !important; min-width: 48px !important; }
+  }
+</style>
+<script data-mannyela-msg-v2="1">
+(function(){
+  // Auto-grow the composer & auto-scroll on new message
+  function autoGrow(t){
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+  }
+  document.addEventListener('input', function(e){
+    if (e.target && (e.target.id === 'msg-input' || e.target.id === 'new-msg-text')) autoGrow(e.target);
+  });
+  function scrollBottom(){
+    ['conv-scroll','msg-scroll','elya-scroll'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+  new MutationObserver(function(){ scrollBottom(); }).observe(document.body, {childList:true, subtree:true});
+  setInterval(scrollBottom, 800);
+})();
+</script>
+<!-- ═══ END MESSAGING REDESIGN v2 ═══ -->
+
+<!-- ═══ MISSING HANDLER FIX v1 ═══ -->
+<script>
+(function(){
+  // toggleLike was referenced in the community feed but never defined → ReferenceError on click.
+  if (typeof window.toggleLike !== 'function') {
+    window.toggleLike = function(postId){
+      try {
+        window.state = window.state || {};
+        state.likedPosts = Array.isArray(state.likedPosts) ? state.likedPosts : [];
+        var i = state.likedPosts.indexOf(postId);
+        if (i >= 0) state.likedPosts.splice(i,1); else state.likedPosts.push(postId);
+        try { localStorage.setItem('mannyela_liked_posts', JSON.stringify(state.likedPosts)); } catch(_){}
+        // Best-effort re-render
+        if (typeof renderProfile === 'function' && (state.step==='profile'||state.step==='community')) renderProfile();
+        // Best-effort persist to Supabase if available (silently ignored on failure)
+        var c = window._supabaseClient || window.supabase;
+        if (c && c.from) {
+          c.from('post_likes').upsert({ post_id: postId, user_id: (state.user&&state.user.id)||null, liked: i<0 }, { onConflict: 'post_id,user_id' }).then(function(){},function(){});
+        }
+      } catch(e){ console.warn('[toggleLike]', e); }
+    };
+    // Restore liked state on load
+    try {
+      var saved = localStorage.getItem('mannyela_liked_posts');
+      if (saved) { window.state = window.state || {}; state.likedPosts = JSON.parse(saved); }
+    } catch(_){}
+  }
+})();
+</script>
+<!-- ═══ END MISSING HANDLER FIX v1 ═══ -->
+
 </body>
 </html>
