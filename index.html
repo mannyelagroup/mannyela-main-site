@@ -9606,5 +9606,155 @@ function buildElyaSystemPrompt() {
     document.addEventListener('DOMContentLoaded', function () { window.doLogin = localFirstLogin; });
   })();
   </script>
+
+<!-- ═══ MANNYELA PATCH BUNDLE (2026) ═══ -->
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   MANNYELA — PATCH BUNDLE (2026)
+   • Password show/hide (eye icon on every <input type="password">)
+   • Messaging UI polish (larger textarea, better spacing, mobile-friendly)
+   • Mobile: adoucir la ligne horizontale supérieure de la barre du bas
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  // ── 1) STYLES ────────────────────────────────────────────────────────
+  var css = `
+  /* Eye toggle wrapper */
+  .mnypw-wrap { position: relative; display: inline-block; width: 100%; }
+  .mnypw-wrap > input { padding-right: 38px !important; width: 100%; box-sizing: border-box; }
+  .mnypw-eye {
+    position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+    background: transparent; border: 0; cursor: pointer; padding: 4px;
+    color: rgba(196,149,106,0.75); display: inline-flex; align-items: center;
+    justify-content: center; line-height: 0; z-index: 5;
+  }
+  .mnypw-eye:hover { color: rgba(196,149,106,1); }
+  .mnypw-eye svg { width: 18px; height: 18px; }
+
+  /* Messagerie — améliorations UX/UI globales */
+  #msg-input, textarea[id^="msg-"], textarea[placeholder*="crire"] {
+    min-height: 72px !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+    padding: 0.7rem 0.85rem !important;
+    border-radius: 8px !important;
+  }
+  .msg-scroll { padding: 0.75rem 0.5rem !important; }
+
+  @media (max-width: 768px) {
+    /* Adoucir la barre supérieure de la bottom-nav (experte) */
+    #expert-bottom-nav {
+      border-top: 0 !important;
+      background: linear-gradient(to top, rgba(0,12,9,0.98) 78%, rgba(0,12,9,0)) !important;
+      box-shadow: 0 -6px 18px rgba(0,0,0,0.35);
+    }
+    /* Messagerie mobile : plein écran confortable */
+    #msg-input, textarea[id^="msg-"] {
+      min-height: 88px !important;
+      font-size: 14px !important;
+    }
+  }
+  `;
+  var st = document.createElement('style');
+  st.setAttribute('data-mannyela-patch', '1');
+  st.textContent = css;
+  (document.head || document.documentElement).appendChild(st);
+
+  // ── 2) PASSWORD SHOW/HIDE ────────────────────────────────────────────
+  var EYE_OPEN =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.5 19.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a19.6 19.6 0 0 1-3.17 4.16M14.12 14.12A3 3 0 1 1 9.88 9.88"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+  function decoratePassword(inp) {
+    if (!inp || inp.dataset.mnypwDone === '1') return;
+    if (inp.type !== 'password') return;
+    inp.dataset.mnypwDone = '1';
+    // Wrap
+    var parent = inp.parentNode;
+    if (!parent) return;
+    var wrap = document.createElement('span');
+    wrap.className = 'mnypw-wrap';
+    parent.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    // Button
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mnypw-eye';
+    btn.setAttribute('aria-label', 'Afficher / masquer le mot de passe');
+    btn.innerHTML = EYE_OPEN;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (inp.type === 'password') { inp.type = 'text'; btn.innerHTML = EYE_OFF; }
+      else { inp.type = 'password'; btn.innerHTML = EYE_OPEN; }
+    });
+    wrap.appendChild(btn);
+  }
+
+  function scanPasswords(root) {
+    (root || document).querySelectorAll('input[type="password"]').forEach(decoratePassword);
+  }
+
+  // Initial + observer for dynamically added fields
+  document.addEventListener('DOMContentLoaded', function () { scanPasswords(); });
+  scanPasswords();
+  try {
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        m.addedNodes && m.addedNodes.forEach(function (n) {
+          if (n.nodeType === 1) {
+            if (n.matches && n.matches('input[type="password"]')) decoratePassword(n);
+            else scanPasswords(n);
+          }
+        });
+      });
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  } catch (e) { /* ignore */ }
+})();
+
+</script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   MANNYELA CLIENTE — SYNC PATCH
+   Recharge depuis Supabase (client_fiches) les données envoyées par l'experte :
+     • comptes_rendus  → state.compteRendus reçus
+     • rituels         → state.rituelsRecus
+   Polling léger toutes les 30s tant que la cliente est connectée.
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  function client() { return window._supabaseClient || window.supabase || null; }
+  async function sbUser() {
+    try {
+      var c = client();
+      if (!c || !c.auth || !c.auth.getUser) return null;
+      var r = await c.auth.getUser();
+      return (r && r.data && r.data.user) || null;
+    } catch (e) { return null; }
+  }
+  function log(m, e) { try { console.warn('[MannyelaClientSync] ' + m, e && (e.message || e)); } catch (_) {} }
+
+  async function pullFromFiche() {
+    var c = client();
+    var u = await sbUser();
+    if (!c || !u) return;
+    try {
+      var r = await c.from('client_fiches').select('comptes_rendus,rituels').eq('id', u.id).maybeSingle();
+      if (r && r.data) {
+        if (typeof state !== 'undefined') {
+          if (Array.isArray(r.data.comptes_rendus)) state.comptesRendusRecus = r.data.comptes_rendus;
+          if (Array.isArray(r.data.rituels)) state.rituelsRecus = r.data.rituels;
+          try { window.dispatchEvent(new CustomEvent('mannyela:sync', { detail: { source: 'fiche' } })); } catch (_) {}
+        }
+      }
+    } catch (e) { log('pullFromFiche', e); }
+  }
+
+  // Initial + polling
+  document.addEventListener('DOMContentLoaded', function () { setTimeout(pullFromFiche, 1500); });
+  setInterval(pullFromFiche, 30000);
+
+  console.log('[MannyelaClientSync] Cliente sync patch actif ✦');
+})();
+
+</script>
 </body>
 </html>
