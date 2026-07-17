@@ -10171,6 +10171,109 @@ function buildElyaSystemPrompt() {
 </script>
 <!-- ═══ END FIX v2 ═══ -->
 
+<!-- ═══ MANNYELA CLIENTE — CR + RITUELS SYNC v3 (2026) ═══ -->
+<script data-mannyela-client-sync-v3="1">
+/*
+  Récupère les comptes-rendus (Suivi Capillaire) et rituels envoyés par
+  les expertes depuis les tables dédiées `expert_rapports` / `expert_rituels`
+  (lookup par email cliente, insensible à la casse).
+  Alimente state.expertReports (affiché dans Suivi Capillaire) et
+  state.routinePrescrite (affiché dans Ma Routine).
+*/
+(function(){
+  function c(){ return window._supabaseClient || window.supabase || null; }
+  function log(m,e){ try{console.warn('[ClientSyncV3] '+m, e && (e.message||e));}catch(_){}}
+  function myEmail(){
+    try{
+      if (typeof state!=='undefined' && state.user && state.user.email) return String(state.user.email).trim().toLowerCase();
+    }catch(_){}
+    return '';
+  }
+  function fmtDate(iso){
+    try{
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return iso || '';
+      return d.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+    }catch(_){ return iso || ''; }
+  }
+
+  function reRender(){
+    try{
+      if (typeof renderProfile==='function' && state && state.step==='profile') renderProfile();
+    }catch(_){}
+  }
+
+  async function pullRapports(){
+    var cli = c(); if(!cli) return;
+    var em = myEmail(); if(!em) return;
+    try{
+      var r = await cli.from('expert_rapports').select('*').ilike('cliente_email', em).order('created_at', { ascending: true });
+      if (!r || r.error || !Array.isArray(r.data)) return;
+      var mapped = r.data.map(function(row){
+        var p = row.payload || {};
+        return {
+          id: row.id,
+          expert: p.expert || row.expert_nom || 'Votre experte',
+          date:   p.date && !/^\d{4}-/.test(p.date) ? p.date : fmtDate(row.created_at),
+          type:   p.type || 'Séance',
+          diagnosis:       p.diagnostic || p.diagnosis || '',
+          treatments:      p.soins || p.treatments || '',
+          recommendations: p.recommendations || p.recommandations || '',
+          nextVisit:       p.nextVisit || '',
+          urgency:         p.urgency || 'ok',
+          photo_avant:     p.photo_avant || null,
+          photo_apres:     p.photo_apres || null
+        };
+      });
+      var prev = JSON.stringify((state.expertReports||[]).map(function(x){return x.id;}));
+      var next = JSON.stringify(mapped.map(function(x){return x.id;}));
+      if (prev !== next) {
+        state.expertReports = mapped;
+        reRender();
+      }
+    }catch(e){ log('pullRapports', e); }
+  }
+
+  async function pullRituels(){
+    var cli = c(); if(!cli) return;
+    var em = myEmail(); if(!em) return;
+    try{
+      var r = await cli.from('expert_rituels').select('*').ilike('cliente_email', em).order('created_at', { ascending: false }).limit(1);
+      if (!r || r.error || !Array.isArray(r.data) || !r.data.length) return;
+      var row = r.data[0];
+      var p = row.payload || {};
+      var newRoutine = {
+        active: true,
+        prescripteur: p.expertName || row.expert_nom || 'votre experte',
+        date: p.date || fmtDate(row.created_at),
+        objectif: p.description || p.objectif || '',
+        prochainRDV: p.prochainRDV || p.prochainControle || null,
+        prochainControle: p.prochainControle || p.prochainRDV || null,
+        etapes: (p.etapes||[]).map(function(e){ return {
+          freq: e.frequence || e.freq || '',
+          emoji: e.emoji || '✦',
+          titre: e.titre || e.title || '',
+          detail: e.detail || ''
+        };}),
+        produits: (p.produits||[]).map(function(x){ return typeof x==='string' ? x : (x.nom || x.name || ''); })
+      };
+      var prev = JSON.stringify(state.routinePrescrite||null);
+      var next = JSON.stringify(newRoutine);
+      if (prev !== next) {
+        state.routinePrescrite = newRoutine;
+        reRender();
+      }
+    }catch(e){ log('pullRituels', e); }
+  }
+
+  async function tick(){ await pullRapports(); await pullRituels(); }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(tick, 1500); });
+  setInterval(tick, 15000);
+  window.addEventListener('mannyela:login', tick);
+  console.log('[MannyelaClientSyncV3] Sync CR + rituels actif ✦ (15s)');
+})();
+</script>
+
 </body>
 </html>
 
