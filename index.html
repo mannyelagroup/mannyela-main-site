@@ -5007,7 +5007,7 @@
     var dateStr = dateObj.toISOString().split('T')[0];
     return slots.map(function(s) {
       var hStr = typeof s === 'string' ? s : (String(s.h).padStart(2,'0') + ':' + (s.min===0?'00':'30'));
-      return '<button class="_creneau-btn" style="font-family:Cinzel,serif;font-size:9px;padding:0.35rem 0.75rem;border:1px solid rgba(196,149,106,0.35);color:rgba(196,149,106,0.8);background:rgba(196,149,106,0.04);cursor:pointer;" onclick="bookingState.selectedExpert=' + "'" + String(expId).replace(/'/g,"\\'") + "'" + ';bookingState.selectedDate=' + "'" + dateStr + "'" + ';bookingState.selectedSlot=' + "'" + hStr + "'" + ';bookingState.calendarMonth=' + dateObj.getMonth() + ';bookingState.calendarYear=' + dateObj.getFullYear() + ';goTo(' + "'booking'" + ')">' + hStr + '</button>';
+      return '<button class="_creneau-btn" style="font-family:Cinzel,serif;font-size:9px;padding:0.35rem 0.75rem;border:1px solid rgba(196,149,106,0.35);color:rgba(196,149,106,0.8);background:rgba(196,149,106,0.04);cursor:pointer;" onclick="bookingState.selectedExpert=' + "'" + String(expId).replace(/'/g,"\\'") + "'" + ';bookingState.selectedDate=' + "'" + dateStr + "'" + ';bookingState.selectedSlot=' + "'" + hStr + "'" + ';bookingState.step=2;bookingState.calendarMonth=' + dateObj.getMonth() + ';bookingState.calendarYear=' + dateObj.getFullYear() + ';goTo(' + "'booking'" + ')">' + hStr + '</button>';
     }).join('');
   }
 
@@ -5079,7 +5079,7 @@
         nom: e.name || e.nom || '', email: e.email,
         specialite: e.specialite || '', bio: e.bio || '', ville: e.ville || '',
         niveau: e.niveau || 'Experte', tarif: e.tarif || 0, note: e.note || 5, avis: e.avis || 0,
-        disponible: e.disponible !== false, isRef: !!(e.isRef || e.is_ref), photo: e.photo || e.avatar || null,
+        id: e.email, disponible: e.disponible !== false, isRef: !!(e.isRef || e.is_ref), photo: e.photo || e.avatar || null,
         prestations: Array.isArray(e.prestations) ? e.prestations : [],
         portfolio: Array.isArray(e.portfolio) ? e.portfolio : [], horaires: e.horaires || {}, dispos: e.dispos || {}, disponibilites: e.disponibilites || e.dispos || {}
       };
@@ -7210,42 +7210,49 @@ function buildElyaSystemPrompt() {
     renderBooking();
   }
 
-  function confirmerRdv() {
+  async function confirmerRdv() {
     const expert = expertes.find(e => String(e.id) === String(bookingState.selectedExpert));
+    if (!expert || !bookingState.selectedDate || !bookingState.selectedSlot || !state.user || !state.user.email) {
+      showNotify('Impossible de confirmer ce rendez-vous — vérifiez la cliente, la date et le créneau.');
+      return;
+    }
     const dateObj = new Date(bookingState.selectedDate + 'T12:00:00');
     const dateLabel = dateObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-    const expertName = (expert.prenom || '') + ' ' + (expert.nom || '');
+    const expertName = (((expert.prenom || '') + ' ' + (expert.nom || '')).trim() || expert.name || expert.nom || 'Votre experte');
+    const rdvCloud = {
+      cliente_email: (state.user.email||'').trim().toLowerCase(), cliente_nom: state.user.name,
+      experte_email: (expert.email || '').toLowerCase(), experte_nom: expertName,
+      date: bookingState.selectedDate, heure: bookingState.selectedSlot,
+      prestation: bookingState.panier.map(function (p) { return p.nom; }).join(', '),
+      prix: panierTotalNet(), statut: 'confirmé', source: 'cliente'
+    };
+    try {
+      var _c = window._supabaseClient || window.supabase;
+      if (!_c || !_c.from) { showNotify('Connexion cloud indisponible — réessayez dans quelques secondes.'); return; }
+      var saved = await _c.from('rendez_vous').insert(rdvCloud).select('id');
+      if (saved && saved.error) { showNotify('Réservation non enregistrée : ' + saved.error.message); return; }
+    } catch (e) {
+      showNotify('Réservation non enregistrée : erreur réseau.');
+      return;
+    }
     state.appointments = state.appointments || [];
     state.appointments.unshift({
       prestations: bookingState.panier.map(p => p.nom),
-      expert:      expertName.trim(),
+      expert:      expertName,
       date:        dateLabel,
       time:        bookingState.selectedSlot,
       total:       panierTotalNet(),
       acompte:     panierAcompte(),
       status:      'Confirmé'
     });
-    // Enregistrer aussi dans le cloud → visible côté experte
-    try {
-      var _c = window._supabaseClient || window.supabase;
-      if (_c && _c.from && state.user) {
-        _c.from('rendez_vous').insert({
-          cliente_email: (state.user.email||'').trim().toLowerCase(), cliente_nom: state.user.name,
-          experte_email: (expert.email || '').toLowerCase(), experte_nom: expertName.trim(),
-          date: bookingState.selectedDate, heure: bookingState.selectedSlot,
-          prestation: bookingState.panier.map(function (p) { return p.nom; }).join(', '),
-          prix: panierTotalNet(), statut: 'confirmé', source: 'cliente'
-        }).then(function () {}, function () {});
-      }
-    } catch (e) {}
     // Sync next RDV in profile
     if (state.nextRDV) { state.lastRDV = state.nextRDV; }
     state.nextRDV = {
-      expert: expertName.trim(),
+      expert: expertName,
       date:   dateLabel,
       time:   bookingState.selectedSlot,
     };
-    bookingState.confirmedBooking = { expert: expertName.trim(), date: dateLabel, time: bookingState.selectedSlot };
+    bookingState.confirmedBooking = { expert: expertName, date: dateLabel, time: bookingState.selectedSlot };
     bookingState.step = 6;
     renderBooking();
   }
@@ -9454,6 +9461,7 @@ function buildElyaSystemPrompt() {
           window._cloudExperts = res.data;
           if (typeof state !== 'undefined' && state.step === 'admin' && typeof renderAdminPanel === 'function') renderAdminPanel();
           else if (typeof state !== 'undefined' && state.step === 'expertes' && typeof renderExpertes === 'function') renderExpertes();
+          else if (typeof state !== 'undefined' && state.step === 'booking' && typeof renderBooking === 'function') renderBooking();
         }
       } catch (e) { console.warn('Experts load:', e && e.message); }
     }
