@@ -10274,6 +10274,124 @@ function buildElyaSystemPrompt() {
 })();
 </script>
 
+
+<!-- ═══ MANNYELA CLIENTE — FIX v4 : diagnostic persistant + fiche complète ═══ -->
+<script data-mannyela-client-v4="1">
+(function(){
+  function log(m,e){ try{ console.warn('[ClientV4] '+m, e && (e.message||e)); }catch(_){} }
+  function em(){ try{ return String((state.user&&state.user.email)||'').trim().toLowerCase(); }catch(_){ return ''; } }
+  function key(){ return 'mannyela_diag_' + (em() || 'anon'); }
+
+  function persistDiag(){
+    try{ if (state && state.diagAnswers) localStorage.setItem(key(), JSON.stringify(state.diagAnswers)); }catch(_){}
+  }
+  function restoreDiag(){
+    try{
+      var raw = localStorage.getItem(key()) || localStorage.getItem('mannyela_diag_anon');
+      if (!raw) return;
+      var o = JSON.parse(raw) || {};
+      state.diagAnswers = Object.assign({}, o, state.diagAnswers || {});
+      if (Object.keys(state.diagAnswers).length >= 3) state.diagDone = true;
+    }catch(_){}
+  }
+
+  // ── Fiche complète envoyée à l'experte (clés réelles du formulaire) ────
+  window.buildClientFiche = function(){
+    var a = (state && state.diagAnswers) || {};
+    var entries = (state && state.journalEntries) || [];
+    var texture  = a.texture || '';
+    var porosite = a.porosity || a.porosite || '';
+    var densite  = a.volume || a.densite || a.density || '';
+    var objectif = a.goal || a.objectif || '';
+    var etat     = a.scalp || a.etat || '';
+    var elast    = a.elasticity || '';
+    var longueur = a.longueur || a.length || '';
+
+    var avgHyd = 0, avgCas = 0, n = 0;
+    entries.forEach(function(e){
+      if (e.indicators && e.indicators.hyd) { avgHyd += e.indicators.hyd; avgCas += (e.indicators.cas || 0); n++; }
+    });
+
+    var an = [];
+    an.push('Profil : ' + (texture || 'texture non renseignée')
+      + (porosite ? ', porosité ' + porosite : '')
+      + (densite ? ', densité ' + densite : '')
+      + (elast ? ', élasticité ' + elast : '')
+      + '. Objectif : ' + (objectif || 'non renseigné') + '.');
+    if (etat) an.push('Cuir chevelu : ' + etat + '.');
+    if (a.history) an.push('Historique : ' + a.history + '.');
+    if (a.rituel) an.push('Rituel actuel : ' + a.rituel + '.');
+    if (n > 0) {
+      var h = avgHyd / n, cas = avgCas / n;
+      an.push('Journal (' + entries.length + ' entrées) : hydratation ' + h.toFixed(1) + '/5, casse ' + cas.toFixed(1) + '/5.');
+      if (cas >= 3.5) an.push('⚠ Casse élevée — masque protéiné mensuel + scellage systématique (méthode LOC).');
+      if (h <= 2.5) an.push('⚠ Hydratation faible — intensifier l\'hydratation quotidienne avant le scellage.');
+      if (cas < 3.5 && h > 2.5) an.push('Indicateurs équilibrés — maintenir la routine actuelle.');
+    } else {
+      an.push('Aucune donnée de journal pour le moment.');
+    }
+
+    var f = {
+      texture: texture, porosite: porosite, densite: densite, objectif: objectif,
+      etat: etat, longueur: longueur,
+      diag: a,
+      journal_resume: entries.slice(0,5).map(function(e){ return { date:e.date, title:e.title, indicators:e.indicators||null, tags:e.tags||[] }; }),
+      nb_journal: entries.length,
+      derniere_entree: entries[0] ? { date: entries[0].date, title: entries[0].title, indicators: entries[0].indicators||null } : null,
+      elya_analyse: an.join(' ')
+    };
+    // ne jamais écraser une donnée existante par une valeur vide
+    Object.keys(f).forEach(function(k){ if (f[k] === '' || f[k] === null) delete f[k]; });
+    return f;
+  };
+
+  // ── Sauvegarde cloud (avec repli si certaines colonnes n'existent pas) ─
+  async function pushFiche(){
+    try{
+      var cli = window._supabaseClient || window.supabase;
+      if (!cli || !cli.auth) return;
+      var u = await cli.auth.getUser();
+      u = u && u.data && u.data.user;
+      if (!u) return;
+      var f = window.buildClientFiche();
+      var base = {
+        id: u.id, email: (u.email||'').toLowerCase(),
+        name: (state.user && state.user.name) || (u.email||'').split('@')[0],
+        updated_at: new Date().toISOString()
+      };
+      var r = await cli.from('client_fiches').upsert(Object.assign({}, base, f));
+      if (r && r.error) {
+        log('upsert fiche (repli colonnes de base)', r.error);
+        delete f.etat; delete f.longueur; delete f.diag;
+        var r2 = await cli.from('client_fiches').upsert(Object.assign({}, base, f));
+        if (r2 && r2.error) log('upsert fiche repli', r2.error);
+      }
+    }catch(e){ log('pushFiche', e); }
+  }
+  window.mannyelaPushFiche = pushFiche;
+
+  // ── Hooks : à chaque réponse, à la fin du diagnostic, à la connexion ───
+  ['selectDiag','diagNext','resetDiag'].forEach(function(fn){
+    var orig = window[fn];
+    if (typeof orig !== 'function') return;
+    window[fn] = function(){
+      var r = orig.apply(this, arguments);
+      persistDiag();
+      try { if (fn === 'diagNext' && state.diagDone) pushFiche(); } catch(_){}
+      return r;
+    };
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){ restoreDiag(); pushFiche(); }, 1500);
+  });
+  window.addEventListener('mannyela:login', function(){ setTimeout(function(){ restoreDiag(); pushFiche(); }, 800); });
+  setInterval(function(){ if (em()) pushFiche(); }, 120000);
+
+  console.log('[ClientV4] Diagnostic persistant + fiche experte ✦');
+})();
+</script>
+
 </body>
 </html>
 
