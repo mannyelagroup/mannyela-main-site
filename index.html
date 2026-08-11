@@ -9095,5 +9095,88 @@ function buildElyaSystemPrompt() {
 })();
 </script>
 
+<!-- ═══ MANNYELA CLIENTE — Chargement des expertes + disponibilités depuis Supabase ═══ -->
+<script data-mannyela-experts-loader="1">
+(function(){
+  'use strict';
+  function sb(){ return window._supabaseClient || window.supabase || null; }
+  function norm(v){ return String(v==null?'':v).trim().toLowerCase(); }
+
+  // Fusionne les expertes Supabase dans le cache local lu par la réservation.
+  function mergeIntoLocal(rows){
+    var store = [];
+    try{ store = JSON.parse(localStorage.getItem('mannyela_expertes_publiques') || '[]'); }catch(_){ store = []; }
+    rows.forEach(function(r){
+      var dispo = r.disponibilites || r.dispos || {};
+      var profil = {
+        id: r.email, email: r.email, name: r.name, nom: r.name,
+        ville: r.ville || '', specialite: r.specialite || '', bio: r.bio || '',
+        avatar: r.photo || '', niveau: r.niveau || (r.is_ref ? 'Experte Mannyela ✦' : 'Experte Réseau'),
+        isRef: r.is_ref === true, badge: r.badge || (r.is_ref ? 'mannyela' : 'reseau'),
+        prestations: Array.isArray(r.prestations) ? r.prestations : [],
+        dispos: dispo, disponibilites: dispo,
+        actif: r.actif !== false, updatedAt: r.updated_at || null
+      };
+      var i = store.findIndex(function(e){ return norm(e.email) === norm(r.email); });
+      if (i > -1) store[i] = Object.assign({}, store[i], profil); else store.push(profil);
+      // Fusionne aussi dans le tableau global `expertes` si présent.
+      try{
+        if (typeof expertes !== 'undefined' && Array.isArray(expertes)){
+          var j = expertes.findIndex(function(e){ return norm(e.email) === norm(r.email); });
+          if (j > -1) expertes[j] = Object.assign({}, expertes[j], profil); else expertes.push(profil);
+        }
+      }catch(_){}
+    });
+    try{ localStorage.setItem('mannyela_expertes_publiques', JSON.stringify(store)); }catch(_){}
+  }
+
+  var lastPage = '';
+  function refreshView(){
+    try{
+      if (lastPage === 'booking' && typeof renderBooking === 'function'){ renderBooking(); return; }
+      if (lastPage === 'expertes' && typeof renderExpertes === 'function'){ renderExpertes(); return; }
+      if (typeof _updateExpertesResults === 'function' && document.getElementById('expertes-results')){ _updateExpertesResults(); }
+    }catch(_){}
+  }
+
+  async function loadExperts(){
+    var c = sb(); if (!c || !c.from) return;
+    try{
+      var r = await c.from('experts').select('*').eq('actif', true).limit(500);
+      if (r.error){ console.warn('[MnylExperts] load', r.error.message); return; }
+      if (r.data && r.data.length){ mergeIntoLocal(r.data); refreshView(); }
+    }catch(e){ console.warn('[MnylExperts] load', e); }
+  }
+  window.mannyelaLoadExperts = loadExperts;
+
+  // Rafraîchit les données au moment où la cliente ouvre l'annuaire ou la réservation.
+  (function wrapGoTo(){
+    function apply(){
+      if (typeof goTo !== 'function' || goTo.__mnyl) return;
+      var orig = goTo;
+      window.goTo = function(page){
+        lastPage = page;
+        var ret = orig.apply(this, arguments);
+        if (page === 'expertes' || page === 'booking') loadExperts();
+        return ret;
+      };
+      window.goTo.__mnyl = true;
+    }
+    setTimeout(apply, 0); setTimeout(apply, 1500);
+  })();
+
+  // Chargement initial + rafraîchissement périodique.
+  var tries = 0;
+  var boot = setInterval(function(){
+    tries++;
+    if (sb()){ loadExperts(); clearInterval(boot); }
+    if (tries > 40) clearInterval(boot);
+  }, 800);
+  setInterval(function(){ if (sb()) loadExperts(); }, 30000);
+
+  console.log('[MnylExperts] Annuaire + disponibilités Supabase ✦ (index build 2026-08-11)');
+})();
+</script>
+
 </body>
 </html>
